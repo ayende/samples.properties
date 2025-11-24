@@ -13,7 +13,5 @@ public class DebtItem
     public decimal AmountDue { get; set; }
     public decimal AmountPaid { get; set; }
     public DateTime DueDate { get; set; }
-    
-    public bool IsPaid => AmountPaid >= AmountDue;
-    public bool IsMissing => AmountPaid < AmountDue && DueDate < DateTime.Now;
+
 }

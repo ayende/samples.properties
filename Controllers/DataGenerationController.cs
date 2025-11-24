@@ -37,11 +37,11 @@ public class DataGenerationController : ControllerBase
         {
             new Unit { Id = $"{properties[0].Id}/101", PropertyId = properties[0].Id!, UnitNumber = "101", VacantFrom = null },
             new Unit { Id = $"{properties[0].Id}/102", PropertyId = properties[0].Id!, UnitNumber = "102", VacantFrom = null },
-            new Unit { Id = $"{properties[0].Id}/201", PropertyId = properties[0].Id!, UnitNumber = "201", VacantFrom = DateTime.Now.AddDays(-15) },
+            new Unit { Id = $"{properties[0].Id}/201", PropertyId = properties[0].Id!, UnitNumber = "201", VacantFrom = DateTime.Today.AddDays(-15) },
             new Unit { Id = $"{properties[0].Id}/202", PropertyId = properties[0].Id!, UnitNumber = "202", VacantFrom = null },
             new Unit { Id = $"{properties[1].Id}/1A", PropertyId = properties[1].Id!, UnitNumber = "1A", VacantFrom = null },
             new Unit { Id = $"{properties[1].Id}/1B", PropertyId = properties[1].Id!, UnitNumber = "1B", VacantFrom = null },
-            new Unit { Id = $"{properties[1].Id}/2A", PropertyId = properties[1].Id!, UnitNumber = "2A", VacantFrom = DateTime.Now.AddDays(-5) },
+            new Unit { Id = $"{properties[1].Id}/2A", PropertyId = properties[1].Id!, UnitNumber = "2A", VacantFrom = DateTime.Today.AddDays(-5) },
             new Unit { Id = $"{properties[2].Id}/301", PropertyId = properties[2].Id!, UnitNumber = "301", VacantFrom = null },
             new Unit { Id = $"{properties[2].Id}/302", PropertyId = properties[2].Id!, UnitNumber = "302", VacantFrom = null },
             new Unit { Id = $"{properties[2].Id}/303", PropertyId = properties[2].Id!, UnitNumber = "303", VacantFrom = null }
@@ -80,13 +80,13 @@ public class DataGenerationController : ControllerBase
 
         var leases = new List<Lease>
         {
-            new Lease { UnitId = units[0].Id!, RenterIds = new List<string> { renters[0].Id!, renters[1].Id! }, LeaseAmount = 1500, StartDate = DateTime.Now.AddMonths(-6), EndDate = DateTime.Now.AddMonths(6) },
-            new Lease { UnitId = units[1].Id!, RenterIds = new List<string> { renters[2].Id! }, LeaseAmount = 1200, StartDate = DateTime.Now.AddMonths(-3), EndDate = DateTime.Now.AddMonths(9) },
-            new Lease { UnitId = units[3].Id!, RenterIds = new List<string> { renters[3].Id!, renters[4].Id! }, LeaseAmount = 1800, StartDate = DateTime.Now.AddMonths(-12), EndDate = DateTime.Now.AddMonths(0) },
-            new Lease { UnitId = units[4].Id!, RenterIds = new List<string> { renters[5].Id!, renters[6].Id! }, LeaseAmount = 1600, StartDate = DateTime.Now.AddMonths(-8), EndDate = DateTime.Now.AddMonths(4) },
-            new Lease { UnitId = units[5].Id!, RenterIds = new List<string> { renters[7].Id! }, LeaseAmount = 1400, StartDate = DateTime.Now.AddMonths(-4), EndDate = DateTime.Now.AddMonths(8) },
-            new Lease { UnitId = units[7].Id!, RenterIds = new List<string> { renters[8].Id!, renters[9].Id! }, LeaseAmount = 2200, StartDate = DateTime.Now.AddMonths(-10), EndDate = DateTime.Now.AddMonths(2) },
-            new Lease { UnitId = units[8].Id!, RenterIds = new List<string> { renters[10].Id!, renters[11].Id!, renters[12].Id! }, LeaseAmount = 2500, StartDate = DateTime.Now.AddMonths(-2), EndDate = DateTime.Now.AddMonths(10) }
+            new Lease { UnitId = units[0].Id!, RenterIds = new List<string> { renters[0].Id!, renters[1].Id! }, LeaseAmount = 1500, StartDate = DateTime.Today.AddMonths(-6), EndDate = DateTime.Today.AddMonths(6) },
+            new Lease { UnitId = units[1].Id!, RenterIds = new List<string> { renters[2].Id! }, LeaseAmount = 1200, StartDate = DateTime.Today.AddMonths(-3), EndDate = DateTime.Today.AddMonths(9) },
+            new Lease { UnitId = units[3].Id!, RenterIds = new List<string> { renters[3].Id!, renters[4].Id! }, LeaseAmount = 1800, StartDate = DateTime.Today.AddMonths(-12), EndDate = DateTime.Today.AddMonths(0) },
+            new Lease { UnitId = units[4].Id!, RenterIds = new List<string> { renters[5].Id!, renters[6].Id! }, LeaseAmount = 1600, StartDate = DateTime.Today.AddMonths(-8), EndDate = DateTime.Today.AddMonths(4) },
+            new Lease { UnitId = units[5].Id!, RenterIds = new List<string> { renters[7].Id! }, LeaseAmount = 1400, StartDate = DateTime.Today.AddMonths(-4), EndDate = DateTime.Today.AddMonths(8) },
+            new Lease { UnitId = units[7].Id!, RenterIds = new List<string> { renters[8].Id!, renters[9].Id! }, LeaseAmount = 2200, StartDate = DateTime.Today.AddMonths(-10), EndDate = DateTime.Today.AddMonths(2) },
+            new Lease { UnitId = units[8].Id!, RenterIds = new List<string> { renters[10].Id!, renters[11].Id!, renters[12].Id! }, LeaseAmount = 2500, StartDate = DateTime.Today.AddMonths(-2), EndDate = DateTime.Today.AddMonths(10) }
         };
 
         foreach (var lease in leases)
@@ -98,18 +98,50 @@ public class DataGenerationController : ControllerBase
         }
         _session.SaveChanges();
 
+        // Generate 3 months of utility usage data for occupied units (hourly readings)
+        var occupiedUnits = units.Where(u => u.VacantFrom == null).ToList();
+        var usageRecordsGenerated = 0;
+
+        foreach (var unit in occupiedUnits)
+        {
+            // Generate hourly readings for the past 3 months
+            var hoursToGenerate = 90 * 24; // 90 days * 24 hours
+
+            for (int hour = hoursToGenerate; hour >= 0; hour--)
+            {
+                var timestamp = DateTime.Today.AddHours(-hour);
+
+                // Power usage: random between 0.8-2.1 kWh per hour (typical apartment usage)
+                // Higher usage during day hours (8am-10pm), lower at night
+                var hourOfDay = timestamp.Hour;
+                var isActiveHours = hourOfDay >= 8 && hourOfDay <= 22;
+                var basePower = isActiveHours ? random.Next(12, 25) / 10.0 : random.Next(5, 12) / 10.0;
+                _session.TimeSeriesFor(unit.Id!, "Power").Append(timestamp, basePower);
+
+                // Water usage: random between 2-6 gallons per hour
+                // Higher usage during morning (6am-9am) and evening (6pm-10pm)
+                var isMorningPeak = hourOfDay >= 6 && hourOfDay <= 9;
+                var isEveningPeak = hourOfDay >= 18 && hourOfDay <= 22;
+                var baseWater = (isMorningPeak || isEveningPeak) ? random.Next(35, 70) / 10.0 : random.Next(10, 30) / 10.0;
+                _session.TimeSeriesFor(unit.Id!, "Water").Append(timestamp, baseWater);
+
+                usageRecordsGenerated += 2;
+            }
+        }
+        _session.SaveChanges();
+
         var debtItems = new List<DebtItem>();
         foreach (var lease in leases)
         {
             for (int i = 0; i < 3; i++)
             {
                 var monthOffset = -i;
-                var dueDate = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1).AddMonths(monthOffset);
+                var dueDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(monthOffset);
                 var isPaid = i > 0 || random.Next(0, 3) > 0;
                 var unitForLease = units.FirstOrDefault(u => u.Id == lease.UnitId);
                 var propertyIdForLease = unitForLease?.PropertyId;
                 var primaryRenterId = lease.RenterIds.FirstOrDefault();
-                
+
                 debtItems.Add(new DebtItem
                 {
                     LeaseId = lease.Id,
@@ -138,10 +170,10 @@ public class DataGenerationController : ControllerBase
                     PropertyId = propertyIdForLease,
                     RenterIds = lease.RenterIds.ToList(),
                     Type = "Utility",
-                    Description = $"Electricity - {DateTime.Now.AddMonths(-1):MMMM yyyy}",
+                    Description = $"Electricity - {DateTime.Today.AddMonths(-1):MMMM yyyy}",
                     AmountDue = random.Next(80, 200),
                     AmountPaid = random.Next(0, 2) == 0 ? 0 : random.Next(80, 200),
-                    DueDate = DateTime.Now.AddDays(random.Next(-30, 10))
+                    DueDate = DateTime.Today.AddDays(random.Next(-30, 10))
                 });
             }
         }
@@ -161,7 +193,7 @@ public class DataGenerationController : ControllerBase
             Description = "Additional guest - Nov 2025",
             AmountDue = 150,
             AmountPaid = 0,
-            DueDate = DateTime.Now.AddDays(-5)
+            DueDate = DateTime.Today.AddDays(-5)
         });
 
         foreach (var debt in debtItems)
@@ -172,12 +204,12 @@ public class DataGenerationController : ControllerBase
 
         var payments = new List<Payment>();
         var paidDebts = debtItems.Where(d => d.AmountPaid > 0).Take(5).ToList();
-        
+
         foreach (var debt in paidDebts)
         {
             payments.Add(new Payment
             {
-                PaymentDate = DateTime.Now.AddDays(random.Next(-60, -1)),
+                PaymentDate = DateTime.Today.AddDays(random.Next(-60, -1)),
                 TotalAmountReceived = debt.AmountPaid,
                 PaymentMethods = new List<PaymentMethod>
                 {
@@ -198,12 +230,12 @@ public class DataGenerationController : ControllerBase
 
         var serviceRequests = new List<ServiceRequest>
         {
-            new ServiceRequest { UnitId = units[0].Id!, PropertyId = units[0].PropertyId, RenterId = renters[0].Id!, Type = "Plumbing", Description = "Kitchen sink is leaking", Status = "Open", OpenedAt = DateTime.Now.AddDays(-2) },
-            new ServiceRequest { UnitId = units[1].Id!, PropertyId = units[1].PropertyId, RenterId = renters[2].Id!, Type = "Electrical", Description = "Living room outlet not working", Status = "Scheduled", OpenedAt = DateTime.Now.AddDays(-5) },
-            new ServiceRequest { UnitId = units[3].Id!, PropertyId = units[3].PropertyId, RenterId = renters[3].Id!, Type = "Package", Description = "Package delivery notification", Status = "Open", OpenedAt = DateTime.Now.AddHours(-6) },
-            new ServiceRequest { UnitId = units[4].Id!, PropertyId = units[4].PropertyId, RenterId = renters[5].Id!, Type = "Maintenance", Description = "Heating not working properly", Status = "In Progress", OpenedAt = DateTime.Now.AddDays(-7) },
-            new ServiceRequest { UnitId = units[7].Id!, PropertyId = units[7].PropertyId, RenterId = renters[8].Id!, Type = "Domestic", Description = "Noise complaint from neighbors", Status = "Closed", OpenedAt = DateTime.Now.AddDays(-10), ClosedAt = DateTime.Now.AddDays(-8) },
-            new ServiceRequest { UnitId = units[8].Id!, PropertyId = units[8].PropertyId, RenterId = renters[10].Id!, Type = "Other", Description = "Request for parking space assignment", Status = "Open", OpenedAt = DateTime.Now.AddDays(-1) }
+            new ServiceRequest { UnitId = units[0].Id!, PropertyId = units[0].PropertyId, RenterId = renters[0].Id!, Type = "Plumbing", Description = "Kitchen sink is leaking", Status = "Open", OpenedAt = DateTime.Today.AddDays(-2) },
+            new ServiceRequest { UnitId = units[1].Id!, PropertyId = units[1].PropertyId, RenterId = renters[2].Id!, Type = "Electrical", Description = "Living room outlet not working", Status = "Scheduled", OpenedAt = DateTime.Today.AddDays(-5) },
+            new ServiceRequest { UnitId = units[3].Id!, PropertyId = units[3].PropertyId, RenterId = renters[3].Id!, Type = "Package", Description = "Package delivery notification", Status = "Open", OpenedAt = DateTime.Today.AddHours(-6) },
+            new ServiceRequest { UnitId = units[4].Id!, PropertyId = units[4].PropertyId, RenterId = renters[5].Id!, Type = "Maintenance", Description = "Heating not working properly", Status = "In Progress", OpenedAt = DateTime.Today.AddDays(-7) },
+            new ServiceRequest { UnitId = units[7].Id!, PropertyId = units[7].PropertyId, RenterId = renters[8].Id!, Type = "Domestic", Description = "Noise complaint from neighbors", Status = "Closed", OpenedAt = DateTime.Today.AddDays(-10), ClosedAt = DateTime.Today.AddDays(-8) },
+            new ServiceRequest { UnitId = units[8].Id!, PropertyId = units[8].PropertyId, RenterId = renters[10].Id!, Type = "Other", Description = "Request for parking space assignment", Status = "Open", OpenedAt = DateTime.Today.AddDays(-1) }
         };
 
         foreach (var request in serviceRequests)
@@ -221,7 +253,8 @@ public class DataGenerationController : ControllerBase
             Leases = leases.Count,
             DebtItems = debtItems.Count,
             Payments = payments.Count,
-            ServiceRequests = serviceRequests.Count
+            ServiceRequests = serviceRequests.Count,
+            UtilityRecords = usageRecordsGenerated
         });
     }
 }

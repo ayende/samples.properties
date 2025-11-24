@@ -455,6 +455,9 @@ function Management() {
     const [leases, setLeases] = useState([]);
     const [debts, setDebts] = useState([]);
     const [view, setView] = useState('properties');
+    const [utilityData, setUtilityData] = useState(null);
+    const [weekOffset, setWeekOffset] = useState(0);
+    const [viewMode, setViewMode] = useState('weekly'); // 'weekly' or 'hourly'
 
     useEffect(() => {
         loadProperties();
@@ -496,7 +499,52 @@ function Management() {
     const selectUnit = (unit) => {
         setSelectedUnit(unit);
         loadLeases(unit.id);
+        loadUtilityData(unit.id, 0, 'weekly');
+        setWeekOffset(0);
+        setViewMode('weekly');
         setView('leases');
+    };
+
+    const loadUtilityData = async (unitId, offset, mode) => {
+        try {
+            let startDate, endDate;
+            const now = new Date();
+            
+            if (mode === 'hourly') {
+                // Show 48 hours of data
+                endDate = new Date(now.getTime() - (offset * 24 * 60 * 60 * 1000));
+                startDate = new Date(endDate.getTime() - (48 * 60 * 60 * 1000));
+            } else {
+                // Show 6 weeks of data
+                endDate = new Date(now.getTime() - (offset * 7 * 24 * 60 * 60 * 1000));
+                startDate = new Date(endDate.getTime() - (6 * 7 * 24 * 60 * 60 * 1000));
+            }
+            
+            const response = await fetch(
+                `${API_BASE}/utilityusage/unit/${encodeURIComponent(unitId)}?from=${startDate.toISOString()}&to=${endDate.toISOString()}`
+            );
+            const data = await response.json();
+            setUtilityData(data);
+        } catch (error) {
+            console.error('Failed to load utility data:', error);
+        }
+    };
+
+    const navigateWeek = (direction) => {
+        const newOffset = weekOffset + direction;
+        setWeekOffset(newOffset);
+        if (selectedUnit) {
+            loadUtilityData(selectedUnit.id, newOffset, viewMode);
+        }
+    };
+
+    const toggleViewMode = () => {
+        const newMode = viewMode === 'weekly' ? 'hourly' : 'weekly';
+        setViewMode(newMode);
+        setWeekOffset(0);
+        if (selectedUnit) {
+            loadUtilityData(selectedUnit.id, 0, newMode);
+        }
     };
 
     return (
@@ -626,9 +674,128 @@ function Management() {
                                         <label className="text-gray-400 text-sm">End Date</label>
                                         <p className="text-lg">{new Date(lease.endDate).toLocaleDateString()}</p>
                                     </div>
+                                    <div>
+                                        <label className="text-gray-400 text-sm">Power Rate</label>
+                                        <p className="text-lg">${lease.powerUnitPrice?.toFixed(3) || '0.120'}/kWh</p>
+                                    </div>
+                                    <div>
+                                        <label className="text-gray-400 text-sm">Water Rate</label>
+                                        <p className="text-lg">${lease.waterUnitPrice?.toFixed(3) || '0.005'}/gal</p>
+                                    </div>
                                 </div>
                             </div>
                         ))
+                    )}
+
+                    {utilityData && (
+                        <div className="bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-700">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold text-blue-400">
+                                    Utility Usage - {viewMode === 'hourly' ? 'Past 48 Hours' : 'Past 6 Weeks'}
+                                </h3>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={toggleViewMode}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-smooth"
+                                    >
+                                        {viewMode === 'hourly' ? '📅 Weekly View' : '🔍 Hourly View'}
+                                    </button>
+                                    <button
+                                        onClick={() => navigateWeek(1)}
+                                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-smooth"
+                                    >
+                                        ← Previous
+                                    </button>
+                                    <button
+                                        onClick={() => navigateWeek(-1)}
+                                        disabled={weekOffset === 0}
+                                        className={`px-4 py-2 rounded-lg transition-smooth ${
+                                            weekOffset === 0
+                                                ? 'bg-gray-900 text-gray-600 cursor-not-allowed'
+                                                : 'bg-gray-700 hover:bg-gray-600'
+                                        }`}
+                                    >
+                                        Next →
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h4 className="text-lg font-semibold text-yellow-400 mb-3">⚡ Electricity Usage</h4>
+                                    {utilityData.powerUsage && utilityData.powerUsage.length > 0 ? (
+                                        <div className="space-y-2">
+                                            <div className="bg-gray-900 rounded-lg p-4">
+                                                <p className="text-gray-400 text-sm mb-2">Total Usage {viewMode === 'hourly' ? '(48h)' : '(6 weeks)'}</p>
+                                                <p className="text-3xl font-bold text-yellow-400">
+                                                    {utilityData.powerUsage.reduce((sum, entry) => sum + entry.value, 0).toFixed(2)} kWh
+                                                </p>
+                                                {viewMode === 'hourly' && (
+                                                    <p className="text-sm text-gray-500 mt-1">
+                                                        Avg: {(utilityData.powerUsage.reduce((sum, entry) => sum + entry.value, 0) / utilityData.powerUsage.length).toFixed(2)} kWh/hr
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
+                                                <p className="text-gray-400 text-sm mb-2">{viewMode === 'hourly' ? 'Hourly Breakdown' : 'Daily Breakdown'}</p>
+                                                <div className="space-y-1">
+                                                    {utilityData.powerUsage.slice().reverse().map((entry, idx) => (
+                                                        <div key={idx} className="flex justify-between text-sm">
+                                                            <span className="text-gray-400">
+                                                                {viewMode === 'hourly' 
+                                                                    ? new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                                                                    : new Date(entry.timestamp).toLocaleDateString()
+                                                                }
+                                                            </span>
+                                                            <span className="text-yellow-300 font-medium">{entry.value.toFixed(2)} kWh</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-400">No power usage data available</p>
+                                    )}
+                                </div>
+                                
+                                <div>
+                                    <h4 className="text-lg font-semibold text-blue-400 mb-3">💧 Water Usage</h4>
+                                    {utilityData.waterUsage && utilityData.waterUsage.length > 0 ? (
+                                        <div className="space-y-2">
+                                            <div className="bg-gray-900 rounded-lg p-4">
+                                                <p className="text-gray-400 text-sm mb-2">Total Usage {viewMode === 'hourly' ? '(48h)' : '(6 weeks)'}</p>
+                                                <p className="text-3xl font-bold text-blue-400">
+                                                    {utilityData.waterUsage.reduce((sum, entry) => sum + entry.value, 0).toFixed(2)} gal
+                                                </p>
+                                                {viewMode === 'hourly' && (
+                                                    <p className="text-sm text-gray-500 mt-1">
+                                                        Avg: {(utilityData.waterUsage.reduce((sum, entry) => sum + entry.value, 0) / utilityData.waterUsage.length).toFixed(2)} gal/hr
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
+                                                <p className="text-gray-400 text-sm mb-2">{viewMode === 'hourly' ? 'Hourly Breakdown' : 'Daily Breakdown'}</p>
+                                                <div className="space-y-1">
+                                                    {utilityData.waterUsage.slice().reverse().map((entry, idx) => (
+                                                        <div key={idx} className="flex justify-between text-sm">
+                                                            <span className="text-gray-400">
+                                                                {viewMode === 'hourly' 
+                                                                    ? new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                                                                    : new Date(entry.timestamp).toLocaleDateString()
+                                                                }
+                                                            </span>
+                                                            <span className="text-blue-300 font-medium">{entry.value.toFixed(2)} gal</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-400">No water usage data available</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     )}
                 </div>
             )}

@@ -23,9 +23,9 @@ public class LeasesController : ControllerBase
             return NotFound("Unit not found");
 
         _session.Store(lease);
-        
+
         unit.VacantFrom = null;
-        
+
         _session.SaveChanges();
         return Ok(lease);
     }
@@ -41,8 +41,8 @@ public class LeasesController : ControllerBase
         if (unit == null)
             return NotFound("Unit not found");
 
-        lease.EndDate = DateTime.Now;
-        unit.VacantFrom = DateTime.Now;
+        lease.EndDate = DateTime.Today;
+        unit.VacantFrom = DateTime.Today;
 
         _session.SaveChanges();
         return Ok(lease);
@@ -52,7 +52,7 @@ public class LeasesController : ControllerBase
     public IActionResult GetByUnit(string unitId)
     {
         var lease = _session.Query<Lease>()
-            .Where(l => l.UnitId == unitId && l.EndDate >= DateTime.Now && l.StartDate <= DateTime.Now)
+            .Where(l => l.UnitId == unitId && l.EndDate >= DateTime.Today && l.StartDate <= DateTime.Today)
             .FirstOrDefault();
 
         if (lease == null)

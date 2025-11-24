@@ -55,7 +55,7 @@ public class ServiceRequestsController : ControllerBase
     [HttpPost]
     public IActionResult Create([FromBody] ServiceRequest request)
     {
-        request.OpenedAt = DateTime.Now;
+        request.OpenedAt = DateTime.Today;
         request.Status = "Open";
         _session.Store(request);
         _session.SaveChanges();
@@ -73,9 +73,8 @@ public class ServiceRequestsController : ControllerBase
 
         if (updateRequest.Status == "Closed" || updateRequest.Status == "Canceled")
         {
-            request.ClosedAt = DateTime.Now;
+            request.ClosedAt = DateTime.Today;
         }
-
         _session.SaveChanges();
         return Ok(request);
     }

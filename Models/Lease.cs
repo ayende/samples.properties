@@ -9,6 +9,10 @@ public class Lease
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public string? LegalDocumentId { get; set; }
-    
-    public bool IsActive => DateTime.Now >= StartDate && DateTime.Now <= EndDate;
+
+    // Utility pricing per unit (e.g., per kWh for power, per gallon for water)
+    public decimal PowerUnitPrice { get; set; } = 0.12m; // default $0.12 per kWh
+    public decimal WaterUnitPrice { get; set; } = 0.005m; // default $0.005 per gallon
+
+    public bool IsActive => DateTime.Today >= StartDate && DateTime.Today <= EndDate;
 }
