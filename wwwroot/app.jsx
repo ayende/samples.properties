@@ -149,11 +149,17 @@ function Dashboard({ stats, boundsWkt, onBoundsWktChange }) {
                             recentRequests.map(request => (
                                 <div key={request.id} className="bg-gray-900 rounded-lg p-4 border border-gray-600 hover:border-blue-500 transition-smooth">
                                     <div className="flex justify-between items-start">
-                                        <div>
-                                            <span className="text-blue-400 font-medium">{request.type}</span>
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-blue-400 font-medium">{request.type}</span>
+                                                <span className="text-gray-500 text-xs">•</span>
+                                                <span className="text-gray-400 text-sm">{request.propertyName}</span>
+                                                <span className="text-gray-500 text-xs">•</span>
+                                                <span className="text-gray-400 text-sm">Unit {request.unitNumber}</span>
+                                            </div>
                                             <p className="text-gray-300 text-sm mt-1">{request.description}</p>
                                         </div>
-                                        <span className="text-xs text-gray-500">{new Date(request.openedAt).toLocaleDateString()}</span>
+                                        <span className="text-xs text-gray-500 ml-4 flex-shrink-0">{new Date(request.openedAt).toLocaleDateString()}</span>
                                     </div>
                                 </div>
                             ))
@@ -249,6 +255,14 @@ function PropertyMap({ properties, onBoundsChange }) {
                     const bounds = map.getBounds();
                     const sw = bounds.getSouthWest();
                     const ne = bounds.getNorthEast();
+                    
+                    // If bounds exceed world limits, send null (show all data)
+                    if (sw.lng < -180 || sw.lng > 180 || ne.lng < -180 || ne.lng > 180 ||
+                        sw.lat < -90 || sw.lat > 90 || ne.lat < -90 || ne.lat > 90) {
+                        onBoundsChange(null);
+                        return;
+                    }
+                    
                     // Rectangle polygon WKT (lon lat order, counterclockwise, closed)
                     const wkt = `POLYGON ((${sw.lng} ${sw.lat}, ${ne.lng} ${sw.lat}, ${ne.lng} ${ne.lat}, ${sw.lng} ${ne.lat}, ${sw.lng} ${sw.lat}))`;
                     onBoundsChange(wkt);
