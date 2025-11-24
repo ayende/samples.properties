@@ -459,9 +459,107 @@ function Management() {
     const [weekOffset, setWeekOffset] = useState(0);
     const [viewMode, setViewMode] = useState('weekly'); // 'weekly' or 'hourly'
 
+    // Initialize from URL on mount
     useEffect(() => {
         loadProperties();
     }, []);
+
+    // Restore state from URL when properties are loaded
+    useEffect(() => {
+        if (properties.length > 0) {
+            const params = new URLSearchParams(window.location.search);
+            const urlView = params.get('view');
+            const urlPropertyId = params.get('property');
+            const urlUnitId = params.get('unit');
+            
+            if (urlPropertyId) {
+                const property = properties.find(p => p.id === urlPropertyId);
+                if (property) {
+                    setSelectedProperty(property);
+                    setUnits((property && property.units) ? property.units : []);
+                    
+                    if (urlUnitId && property.units) {
+                        const unit = property.units.find(u => u.id === urlUnitId);
+                        if (unit) {
+                            setSelectedUnit(unit);
+                            loadLeases(unit.id);
+                            loadUtilityData(unit.id, 0, 'weekly');
+                            setView('leases');
+                            return;
+                        }
+                    }
+                    
+                    if (urlView === 'units') {
+                        setView('units');
+                        return;
+                    }
+                }
+            }
+            
+            if (urlView) {
+                setView(urlView);
+            }
+        }
+    }, [properties]);
+
+    // Update URL when state changes
+    useEffect(() => {
+        const params = new URLSearchParams();
+        params.set('view', view);
+        
+        if (selectedProperty) {
+            params.set('property', selectedProperty.id);
+        }
+        
+        if (selectedUnit) {
+            params.set('unit', selectedUnit.id);
+        }
+        
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        window.history.pushState(null, '', newUrl);
+    }, [view, selectedProperty, selectedUnit]);
+
+    // Handle browser back/forward buttons
+    useEffect(() => {
+        const handlePopState = () => {
+            const params = new URLSearchParams(window.location.search);
+            const urlView = params.get('view') || 'properties';
+            const urlPropertyId = params.get('property');
+            const urlUnitId = params.get('unit');
+            
+            setView(urlView);
+            
+            if (urlPropertyId && properties.length > 0) {
+                const property = properties.find(p => p.id === urlPropertyId);
+                if (property) {
+                    setSelectedProperty(property);
+                    setUnits((property && property.units) ? property.units : []);
+                    
+                    if (urlUnitId && property.units) {
+                        const unit = property.units.find(u => u.id === urlUnitId);
+                        if (unit) {
+                            setSelectedUnit(unit);
+                            loadLeases(unit.id);
+                            loadUtilityData(unit.id, 0, 'weekly');
+                        } else {
+                            setSelectedUnit(null);
+                        }
+                    } else {
+                        setSelectedUnit(null);
+                    }
+                } else {
+                    setSelectedProperty(null);
+                    setSelectedUnit(null);
+                }
+            } else {
+                setSelectedProperty(null);
+                setSelectedUnit(null);
+            }
+        };
+        
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [properties]);
 
     const loadProperties = async () => {
         try {
@@ -492,6 +590,7 @@ function Management() {
 
     const selectProperty = (property) => {
         setSelectedProperty(property);
+        setSelectedUnit(null); // Clear unit when selecting new property
         loadUnits(property.id);
         setView('units');
     };
@@ -594,7 +693,9 @@ function Management() {
                             <p className="text-gray-300 mb-4">{property.address}</p>
                             <div className="flex justify-between text-sm text-gray-400">
                                 <span>Units: {property.totalUnits}</span>
-                                <span>📍 {property.latitude.toFixed(2)}, {property.longitude.toFixed(2)}</span>
+                                {property.latitude != null && property.longitude != null && (
+                                    <span>📍 {property.latitude.toFixed(2)}, {property.longitude.toFixed(2)}</span>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -654,7 +755,7 @@ function Management() {
                                 <div className="grid grid-cols-2 gap-4 mb-4">
                                     <div>
                                         <label className="text-gray-400 text-sm">Lease Amount</label>
-                                        <p className="text-2xl font-bold text-green-400">${lease.leaseAmount.toFixed(2)}/mo</p>
+                                        <p className="text-2xl font-bold text-green-400">${lease.leaseAmount?.toFixed(2) || '0.00'}/mo</p>
                                     </div>
                                     <div>
                                         <label className="text-gray-400 text-sm">Status</label>
@@ -728,18 +829,44 @@ function Management() {
                                             <div className="bg-gray-900 rounded-lg p-4">
                                                 <p className="text-gray-400 text-sm mb-2">Total Usage {viewMode === 'hourly' ? '(48h)' : '(6 weeks)'}</p>
                                                 <p className="text-3xl font-bold text-yellow-400">
-                                                    {utilityData.powerUsage.reduce((sum, entry) => sum + entry.value, 0).toFixed(2)} kWh
+                                                    {utilityData.powerUsage.reduce((sum, entry) => sum + (entry.value || 0), 0).toFixed(2)} kWh
                                                 </p>
                                                 {viewMode === 'hourly' && (
                                                     <p className="text-sm text-gray-500 mt-1">
-                                                        Avg: {(utilityData.powerUsage.reduce((sum, entry) => sum + entry.value, 0) / utilityData.powerUsage.length).toFixed(2)} kWh/hr
+                                                        Avg: {(utilityData.powerUsage.reduce((sum, entry) => sum + (entry.value || 0), 0) / utilityData.powerUsage.length).toFixed(2)} kWh/hr
                                                     </p>
                                                 )}
+                                            </div>
+                                            <div className="bg-gray-900 rounded-lg p-4">
+                                                <p className="text-gray-400 text-sm mb-3">Usage Graph</p>
+                                                <div className="flex items-end justify-between gap-1" style={{ height: '128px' }}>
+                                                    {(() => {
+                                                        const validEntries = utilityData.powerUsage.filter(e => e.value != null);
+                                                        if (validEntries.length === 0) return <p className="text-gray-500 text-sm">No data</p>;
+                                                        const maxValue = Math.max(...validEntries.map(e => e.value));
+                                                        const step = viewMode === 'hourly' ? 4 : Math.ceil(validEntries.length / 20);
+                                                        return validEntries.filter((_, i) => i % step === 0).map((entry, idx) => {
+                                                            const heightPx = Math.max((entry.value / maxValue) * 120, 4);
+                                                            return (
+                                                                <div key={idx} className="flex-1 group relative">
+                                                                    <div 
+                                                                        className="w-full bg-gradient-to-t from-yellow-600 to-yellow-400 rounded-t transition-all hover:from-yellow-500 hover:to-yellow-300"
+                                                                        style={{ height: `${heightPx}px` }}
+                                                                    ></div>
+                                                                    <div className="absolute -top-8 hidden group-hover:block bg-gray-800 text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
+                                                                        <div className="text-yellow-400 font-bold">{entry.value.toFixed(2)} kWh</div>
+                                                                        <div className="text-gray-400">{new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: viewMode === 'hourly' ? 'numeric' : undefined })}</div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </div>
                                             </div>
                                             <div className="bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
                                                 <p className="text-gray-400 text-sm mb-2">{viewMode === 'hourly' ? 'Hourly Breakdown' : 'Daily Breakdown'}</p>
                                                 <div className="space-y-1">
-                                                    {utilityData.powerUsage.slice().reverse().map((entry, idx) => (
+                                                    {utilityData.powerUsage.filter(e => e.value != null).slice().reverse().map((entry, idx) => (
                                                         <div key={idx} className="flex justify-between text-sm">
                                                             <span className="text-gray-400">
                                                                 {viewMode === 'hourly' 
@@ -765,18 +892,44 @@ function Management() {
                                             <div className="bg-gray-900 rounded-lg p-4">
                                                 <p className="text-gray-400 text-sm mb-2">Total Usage {viewMode === 'hourly' ? '(48h)' : '(6 weeks)'}</p>
                                                 <p className="text-3xl font-bold text-blue-400">
-                                                    {utilityData.waterUsage.reduce((sum, entry) => sum + entry.value, 0).toFixed(2)} gal
+                                                    {utilityData.waterUsage.reduce((sum, entry) => sum + (entry.value || 0), 0).toFixed(2)} gal
                                                 </p>
                                                 {viewMode === 'hourly' && (
                                                     <p className="text-sm text-gray-500 mt-1">
-                                                        Avg: {(utilityData.waterUsage.reduce((sum, entry) => sum + entry.value, 0) / utilityData.waterUsage.length).toFixed(2)} gal/hr
+                                                        Avg: {(utilityData.waterUsage.reduce((sum, entry) => sum + (entry.value || 0), 0) / utilityData.waterUsage.length).toFixed(2)} gal/hr
                                                     </p>
                                                 )}
+                                            </div>
+                                            <div className="bg-gray-900 rounded-lg p-4">
+                                                <p className="text-gray-400 text-sm mb-3">Usage Graph</p>
+                                                <div className="flex items-end justify-between gap-1" style={{ height: '128px' }}>
+                                                    {(() => {
+                                                        const validEntries = utilityData.waterUsage.filter(e => e.value != null);
+                                                        if (validEntries.length === 0) return <p className="text-gray-500 text-sm">No data</p>;
+                                                        const maxValue = Math.max(...validEntries.map(e => e.value));
+                                                        const step = viewMode === 'hourly' ? 4 : Math.ceil(validEntries.length / 20);
+                                                        return validEntries.filter((_, i) => i % step === 0).map((entry, idx) => {
+                                                            const heightPx = Math.max((entry.value / maxValue) * 120, 4);
+                                                            return (
+                                                                <div key={idx} className="flex-1 group relative">
+                                                                    <div 
+                                                                        className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t transition-all hover:from-blue-500 hover:to-blue-300"
+                                                                        style={{ height: `${heightPx}px` }}
+                                                                    ></div>
+                                                                    <div className="absolute -top-8 hidden group-hover:block bg-gray-800 text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
+                                                                        <div className="text-blue-400 font-bold">{entry.value.toFixed(2)} gal</div>
+                                                                        <div className="text-gray-400">{new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: viewMode === 'hourly' ? 'numeric' : undefined })}</div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </div>
                                             </div>
                                             <div className="bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
                                                 <p className="text-gray-400 text-sm mb-2">{viewMode === 'hourly' ? 'Hourly Breakdown' : 'Daily Breakdown'}</p>
                                                 <div className="space-y-1">
-                                                    {utilityData.waterUsage.slice().reverse().map((entry, idx) => (
+                                                    {utilityData.waterUsage.filter(e => e.value != null).slice().reverse().map((entry, idx) => (
                                                         <div key={idx} className="flex justify-between text-sm">
                                                             <span className="text-gray-400">
                                                                 {viewMode === 'hourly' 
