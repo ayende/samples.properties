@@ -1,9 +1,13 @@
+using System.ComponentModel;
+using System.Text;
 using PropertySphere.Models;
 using Raven.Client.Documents;
+using Raven.Client.Documents.AI;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace PropertySphere.Services;
 
@@ -25,22 +29,24 @@ public class TelegramPollingService : IHostedService
         _logger = logger;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         var botToken = _configuration["Telegram:BotToken"];
-        
+
         if (string.IsNullOrEmpty(botToken) || botToken == "YOUR_TELEGRAM_BOT_TOKEN_HERE")
         {
             _logger.LogWarning("Telegram bot token not configured. Telegram service will not start.");
-            return Task.CompletedTask;
+            return;
         }
+
+        await PropertyAgent.Create(_documentStore);
 
         _botClient = new TelegramBotClient(botToken);
         _cts = new CancellationTokenSource();
 
         var receiverOptions = new ReceiverOptions
         {
-            AllowedUpdates = new[] { UpdateType.Message }
+            AllowedUpdates = new[] { UpdateType.Message, UpdateType.CallbackQuery }
         };
 
         _botClient.StartReceiving(
@@ -51,7 +57,6 @@ public class TelegramPollingService : IHostedService
         );
 
         _logger.LogInformation("Telegram polling service started");
-        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
@@ -63,16 +68,28 @@ public class TelegramPollingService : IHostedService
 
     private async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
     {
-        if (update.Message is not { Text: { } messageText } message)
-            return;
+        switch (update)
+        {
+            case { Message: { Text: { } messageText } message }:
+                var chatId = message.Chat.Id.ToString();
+                await ProcessMessageAsync(botClient, chatId, messageText, cancellationToken);
+                break;
 
-        var chatId = message.Chat.Id;
+            default:
+                _logger.LogInformation("Ignoring non-text message update: Type={Type}, ChatId={ChatId}, MessageId={MessageId}",
+                    update.Message?.Type, update.Message?.Chat.Id, update.Message?.MessageId);
+                break;
+        }
+    }
+
+    private async Task ProcessMessageAsync(ITelegramBotClient botClient, string chatId, string messageText, CancellationToken cancellationToken)
+    {
         _logger.LogInformation($"Received message from {chatId}: {messageText}");
 
         using var session = _documentStore.OpenSession();
 
         var renter = session.Query<Renter>()
-            .FirstOrDefault(r => r.TelegramChatId == chatId.ToString());
+            .FirstOrDefault(r => r.TelegramChatId == chatId);
 
         if (renter == null)
         {
@@ -84,74 +101,75 @@ public class TelegramPollingService : IHostedService
             return;
         }
 
-        if (messageText.StartsWith("/request ", StringComparison.OrdinalIgnoreCase))
-        {
-            var description = messageText.Substring(9).Trim();
-            
-            if (string.IsNullOrEmpty(description))
+        var conversation = _documentStore.AI.Conversation(PropertyAgent.AgentId,
+            $"chats/{chatId}/{DateTime.Today:yyyy-MM-dd}",
+            new AiConversationCreationOptions
             {
-                await botClient.SendMessage(
-                    chatId,
-                    "Please provide a description. Usage: /request [description]",
-                    cancellationToken: cancellationToken
-                );
-                return;
-            }
+                Parameters = new Dictionary<string, object?>
+                {
+                    ["renterId"] = renter.Id
+                }
+            });
 
-            var activeLease = session.Query<Lease>()
-                .FirstOrDefault(l => l.RenterIds.Contains(renter.Id!) && 
-                                   l.EndDate >= DateTime.Now && 
-                                   l.StartDate <= DateTime.Now);
+        conversation.SetUserPrompt(messageText);
 
-            if (activeLease == null)
-            {
-                await botClient.SendMessage(
-                    chatId,
-                    "No active lease found for your account. Please contact property management.",
-                    cancellationToken: cancellationToken
-                );
-                return;
-            }
+        await botClient.SendChatAction(chatId, ChatAction.Typing, cancellationToken: cancellationToken);
 
-            var serviceRequest = new ServiceRequest
-            {
-                UnitId = activeLease.UnitId,
-                RenterId = renter.Id!,
-                Type = "Other",
-                Description = description,
-                Status = "Open",
-                OpenedAt = DateTime.Now
-            };
+        var msg = new StringBuilder();
+        Task<Message>? previous = null;
 
-            session.Store(serviceRequest);
-            session.SaveChanges();
-
-            await botClient.SendMessage(
-                chatId,
-                $"Your service request has been submitted successfully! Request ID: {serviceRequest.Id}\n\nDescription: {description}",
-                cancellationToken: cancellationToken
-            );
-
-            _logger.LogInformation($"Created service request {serviceRequest.Id} from Telegram user {chatId}");
-        }
-        else if (messageText.StartsWith("/start", StringComparison.OrdinalIgnoreCase))
+        var result = await conversation.StreamAsync<PropertyAgent.Reply>(x => x.Answer, s =>
         {
-            await botClient.SendMessage(
-                chatId,
-                $"Welcome {renter.FirstName} {renter.LastName}!\n\n" +
-                "Available commands:\n" +
-                "/request [description] - Submit a service request",
-                cancellationToken: cancellationToken
-            );
-        }
-        else
+            msg.Append(s);
+            previous = UpdateOrCreateMessageAsync(botClient, chatId, msg.ToString(), previous, cancellationToken);
+            return Task.CompletedTask;
+        }, cancellationToken);
+
+        if (previous != null)
+            await previous;
+
+        await UpdateOrCreateMessageAsync(botClient, chatId, result.Answer.Answer, previous, cancellationToken);
+
+        var replyMarkup = new ReplyKeyboardMarkup(result.Answer.Followups
+            .Chunk(2) // max 2 per row
+            .Select(chunk => chunk.Select(text => new KeyboardButton(text)))
+            .ToArray())
         {
-            await botClient.SendMessage(
-                chatId,
-                "Unknown command. Use /request [description] to submit a service request.",
-                cancellationToken: cancellationToken
-            );
+            ResizeKeyboard = true,
+            OneTimeKeyboard = true
+        };
+
+        await botClient.SendMessage(
+            chatId,
+            "Choose a question or type your own:",
+            replyMarkup: replyMarkup,
+            cancellationToken: cancellationToken);
+    }
+
+    private static async Task<Message> UpdateOrCreateMessageAsync(
+        ITelegramBotClient botClient,
+        string chatId,
+        string text,
+        Task<Message>? previous,
+        CancellationToken cancellationToken)
+    {
+        // If this is the first chunk, create a new message
+        if (previous == null)
+        {
+            return await botClient.SendMessage(chatId, text, parseMode: ParseMode.Markdown, cancellationToken: cancellationToken);
         }
+
+        // Wait for previous operation to complete before starting a new one
+        if (previous.IsCompleted is false)
+            return await previous;
+
+        var previousMessage = await previous;
+
+        // Only edit if content has changed to avoid "message not modified" error
+        if (previousMessage.Text == text)
+            return previousMessage;
+
+        return await botClient.EditMessageText(chatId, previousMessage.MessageId, text, parseMode: ParseMode.Markdown, cancellationToken: cancellationToken);
     }
 
     private Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)

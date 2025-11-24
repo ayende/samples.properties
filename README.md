@@ -1,6 +1,6 @@
 # PropertySphere - Rental Property Management Application
 
-A modern, full-stack rental property management application built with .NET 8, RavenDB, and React.
+A modern, full-stack rental property management application built with .NET, RavenDB, and React.
 
 ## Architecture
 
