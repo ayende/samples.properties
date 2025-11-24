@@ -33,11 +33,13 @@ public class LeasesController : ControllerBase
     [HttpPut("{leaseId}/terminate")]
     public IActionResult Terminate(string leaseId)
     {
-        var lease = _session.Load<Lease>(leaseId);
+        var lease = _session
+            .Include<Lease>(l => l.UnitId)
+            .Load(leaseId); // Load lease along with related unit
         if (lease == null)
             return NotFound("Lease not found");
 
-        var unit = _session.Load<Unit>(lease.UnitId);
+        var unit = _session.Load<Unit>(lease.UnitId); // no server call here
         if (unit == null)
             return NotFound("Unit not found");
 

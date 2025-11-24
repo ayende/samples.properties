@@ -19,15 +19,18 @@ public class PaymentsController : ControllerBase
     public IActionResult Create([FromBody] Payment payment)
     {
         _session.Store(payment);
-        _session.Load<DebtItem>(payment.Allocation.Select(x=>x.DebtItemId)); // preload debt items
-        
+        _session.Load<DebtItem>( // preload debt items
+            payment.Allocation.Select(x => x.DebtItemId));
+
         foreach (var allocation in payment.Allocation)
         {
             var debtItem = _session.Load<DebtItem>(allocation.DebtItemId);
-            if (debtItem != null)
+            if (debtItem == null)
             {
-                debtItem.AmountPaid += allocation.AmountApplied;
+                return BadRequest($"Debt item not found: {allocation.DebtItemId}");
             }
+
+            debtItem.AmountPaid += allocation.AmountApplied;
         }
 
         _session.SaveChanges();

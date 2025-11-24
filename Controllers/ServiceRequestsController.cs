@@ -21,7 +21,6 @@ public class ServiceRequestsController : ControllerBase
     }
 
 
-
     [HttpGet("status/{status}")]
     public IActionResult GetByStatus(string status, [FromQuery] string? boundsWkt)
     {
@@ -34,7 +33,6 @@ public class ServiceRequestsController : ControllerBase
         {
             docQuery = docQuery.Spatial(x => x.Location, spatial => spatial.Within(boundsWkt));
         }
-
 
         var results = docQuery.Select(x => new
         {
@@ -62,7 +60,7 @@ public class ServiceRequestsController : ControllerBase
         return Ok(request);
     }
 
-    [HttpPut("{requestId}/status")]
+    [HttpPut("status/{*requestId}")]
     public IActionResult UpdateStatus(string requestId, [FromBody] UpdateStatusRequest updateRequest)
     {
         var request = _session.Load<ServiceRequest>(requestId);

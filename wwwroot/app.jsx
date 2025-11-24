@@ -324,7 +324,7 @@ function ServiceRequests() {
 
     const updateStatus = async (requestId, newStatus) => {
         try {
-            await fetch(`${API_BASE}/servicerequests/${requestId}/status`, {
+            await fetch(`${API_BASE}/servicerequests/status/${requestId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus })

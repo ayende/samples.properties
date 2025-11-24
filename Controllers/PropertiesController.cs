@@ -32,9 +32,9 @@ public class PropertiesController : ControllerBase
         var properties = query.ToList();
 
         var propertyIds = properties.Select(p => p.Id!).ToList();
-        var units = propertyIds.Count == 0
-            ? new List<Unit>()
-            : _session.Query<Unit>().Where(u => u.PropertyId.In(propertyIds)).ToList();
+        var units = _session.Query<Unit>()
+                .Where(u => u.PropertyId.In(propertyIds))
+                .ToList();
 
         var unitsByProperty = units.GroupBy(u => u.PropertyId)
             .ToDictionary(g => g.Key, g => g.ToList());
@@ -47,7 +47,7 @@ public class PropertiesController : ControllerBase
             p.TotalUnits,
             p.Latitude,
             p.Longitude,
-            Units = unitsByProperty.TryGetValue(p.Id!, out var list) ? list : new List<Unit>()
+            Units = unitsByProperty.GetValueOrDefault(p.Id!) ?? []
         });
 
         return Ok(result);

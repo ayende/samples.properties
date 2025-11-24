@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using PropertySphere.Models;
 using Raven.Client.Documents.Session;
 using Raven.Client.Documents.Operations.TimeSeries;
+using Raven.Client.Documents.Queries.TimeSeries;
+using Raven.Client.Documents.Linq;
+using Raven.Client.Documents.Queries;
 using System.Globalization;
 
 namespace PropertySphere.Controllers;
@@ -51,25 +54,22 @@ public class UtilityUsageController : ControllerBase
         var fromDate = from ?? DateTime.Today.AddMonths(-3);
         var toDate = to ?? DateTime.Today;
 
-        var powerUsage = _session.TimeSeriesFor(unitId, "Power")
-            .Get(fromDate, toDate)?
-            .Select(entry => new UsageDataPoint
+        var result = _session.Query<Unit>()
+            .Where(u => u.Id == unitId)
+            .Select(u => new
             {
-                Timestamp = entry.Timestamp,
-                Value = entry.Value,
-                Tag = entry.Tag
+                PowerUsage = RavenQuery.TimeSeries(u, "Power")
+                    .Where(ts => ts.Timestamp >= fromDate && ts.Timestamp <= toDate)
+                    .GroupBy(g => g.Hours(1))
+                    .Select(g => g.Sum())
+                    .ToList(),
+                WaterUsage = RavenQuery.TimeSeries(u, "Water")
+                    .Where(ts => ts.Timestamp >= fromDate && ts.Timestamp <= toDate)
+                    .GroupBy(g => g.Hours(1))
+                    .Select(g => g.Sum())
+                    .ToList()
             })
-            .ToList() ?? new List<UsageDataPoint>();
-
-        var waterUsage = _session.TimeSeriesFor(unitId, "Water")
-            .Get(fromDate, toDate)?
-            .Select(entry => new UsageDataPoint
-            {
-                Timestamp = entry.Timestamp,
-                Value = entry.Value,
-                Tag = entry.Tag
-            })
-            .ToList() ?? new List<UsageDataPoint>();
+            .FirstOrDefault();
 
         return Ok(new
         {
@@ -77,8 +77,16 @@ public class UtilityUsageController : ControllerBase
             UnitNumber = unit.UnitNumber,
             From = fromDate,
             To = toDate,
-            PowerUsage = powerUsage,
-            WaterUsage = waterUsage
+            PowerUsage = result?.PowerUsage?.Results?.Select(r => new UsageDataPoint
+            {
+                Timestamp = r.From,
+                Value = r.Sum[0],
+            }).ToList() ?? new List<UsageDataPoint>(),
+            WaterUsage = result?.WaterUsage?.Results?.Select(r => new UsageDataPoint
+            {
+                Timestamp = r.From,
+                Value = r.Sum[0],
+            }).ToList() ?? new List<UsageDataPoint>()
         });
     }
 
@@ -88,10 +96,10 @@ public class UtilityUsageController : ControllerBase
         if (unit == null)
             return NotFound($"Unit {request.UnitId} not found");
 
+        var ts = _session.TimeSeriesFor(request.UnitId, timeSeriesName);
         foreach (var entry in request.Entries)
         {
-            _session.TimeSeriesFor(request.UnitId, timeSeriesName)
-                .Append(entry.Timestamp, entry.Usage, entry.Tag);
+            ts.Append(entry.Timestamp, entry.Usage, entry.Tag);
         }
 
         _session.SaveChanges();
@@ -172,5 +180,9 @@ public class UsageDataPoint
 {
     public DateTime Timestamp { get; set; }
     public double Value { get; set; }
-    public string? Tag { get; set; }
+}
+
+public class TimeSeriesQueryResult
+{
+    public TimeSeriesRangeAggregation[]? Results { get; set; }
 }

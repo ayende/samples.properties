@@ -42,7 +42,7 @@ public class DebtItems_Outstanding : AbstractIndexCreationTask<DebtItem, DebtIte
                 AmountPaid = debt.AmountPaid,
                 AmountOutstanding = amountOutstanding,
                 DueDate = debt.DueDate,
-                Location = property != null ? CreateSpatialField(property.Latitude, property.Longitude) : null
+                Location = CreateSpatialField(property.Latitude, property.Longitude)
             };
     }
 }
