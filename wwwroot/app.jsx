@@ -521,7 +521,7 @@ function Management() {
             }
             
             const response = await fetch(
-                `${API_BASE}/utilityusage/unit/${encodeURIComponent(unitId)}?from=${startDate.toISOString()}&to=${endDate.toISOString()}`
+                `${API_BASE}/utilityusage/unit/${unitId}?from=${startDate.toISOString()}&to=${endDate.toISOString()}`
             );
             const data = await response.json();
             setUtilityData(data);

@@ -48,7 +48,7 @@ public class LeasesController : ControllerBase
         return Ok(lease);
     }
 
-    [HttpGet("by-unit/{unitId}")]
+    [HttpGet("by-unit/{*unitId}")]
     public IActionResult GetByUnit(string unitId)
     {
         var lease = _session.Query<Lease>()

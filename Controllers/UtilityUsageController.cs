@@ -41,7 +41,7 @@ public class UtilityUsageController : ControllerBase
         return UploadUtilityDataFromCsv(request.CsvData, "Water");
     }
 
-    [HttpGet("unit/{unitId}")]
+    [HttpGet("unit/{*unitId}")]
     public IActionResult GetUtilityUsage(string unitId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
         var unit = _session.Load<Unit>(unitId);
