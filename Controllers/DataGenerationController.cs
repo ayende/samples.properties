@@ -53,6 +53,7 @@ public class DataGenerationController : ControllerBase
         }
         _session.SaveChanges();
 
+        var cardTypes = new[] { "Visa", "MasterCard", "Amex", "Discover" };
         var renters = new List<Renter>
         {
             new Renter { FirstName = "John", LastName = "Doe", TelegramChatId = "123456789", ContactEmail = "john.doe@email.com", ContactPhone = "555-0101" },
@@ -72,8 +73,21 @@ public class DataGenerationController : ControllerBase
             new Renter { FirstName = "Daniel", LastName = "Harris", TelegramChatId = null, ContactEmail = "d.harris@email.com", ContactPhone = "555-0115" }
         };
 
+        // Add credit cards to renters
         foreach (var renter in renters)
         {
+            var numCards = random.Next(1, 4); // 1-3 cards per renter
+            for (int i = 0; i < numCards; i++)
+            {
+                var month = random.Next(1, 13);
+                var year = random.Next(25, 31); // 2025-2030
+                renter.CreditCards.Add(new CreditCard
+                {
+                    Last4Digits = random.Next(1000, 10000).ToString(),
+                    Type = cardTypes[random.Next(cardTypes.Length)],
+                    Expiration = $"{month:D2}/{year:D2}"
+                });
+            }
             _session.Store(renter);
         }
         _session.SaveChanges();
@@ -138,16 +152,13 @@ public class DataGenerationController : ControllerBase
                 var monthOffset = -i;
                 var dueDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(monthOffset);
                 var isPaid = i > 0 || random.Next(0, 3) > 0;
-                var unitForLease = units.FirstOrDefault(u => u.Id == lease.UnitId);
-                var propertyIdForLease = unitForLease?.PropertyId;
-                var primaryRenterId = lease.RenterIds.FirstOrDefault();
 
                 debtItems.Add(new DebtItem
                 {
                     LeaseId = lease.Id,
                     UnitId = lease.UnitId,
-                    RenterId = primaryRenterId,
-                    PropertyId = propertyIdForLease,
+                    RenterId = lease.RenterIds[random.Next(lease.RenterIds.Count)],
+                    PropertyId = units.FirstOrDefault(u => u.Id == lease.UnitId)?.PropertyId,
                     RenterIds = lease.RenterIds.ToList(),
                     Type = "Rent",
                     Description = $"Rent for {dueDate:MMMM yyyy}",
@@ -157,11 +168,44 @@ public class DataGenerationController : ControllerBase
                 });
             }
 
-            if (random.Next(0, 2) == 0)
+            // Generate multiple debt types for the same unit
+            var unitForLease = units.FirstOrDefault(u => u.Id == lease.UnitId);
+            var propertyIdForLease = unitForLease?.PropertyId;
+            var primaryRenterId = lease.RenterIds.FirstOrDefault();
+
+            // Electricity debt
+            debtItems.Add(new DebtItem
             {
-                var unitForLease = units.FirstOrDefault(u => u.Id == lease.UnitId);
-                var propertyIdForLease = unitForLease?.PropertyId;
-                var primaryRenterId = lease.RenterIds.FirstOrDefault();
+                LeaseId = lease.Id,
+                UnitId = lease.UnitId,
+                RenterId = primaryRenterId,
+                PropertyId = propertyIdForLease,
+                RenterIds = lease.RenterIds.ToList(),
+                Type = "Utility",
+                Description = $"Electricity - {DateTime.Today.AddMonths(-1):MMMM yyyy}",
+                AmountDue = random.Next(80, 150),
+                AmountPaid = random.Next(0, 2) == 0 ? 0 : random.Next(40, 80),
+                DueDate = DateTime.Today.AddDays(random.Next(-30, 10))
+            });
+
+            // Water debt
+            debtItems.Add(new DebtItem
+            {
+                LeaseId = lease.Id,
+                UnitId = lease.UnitId,
+                RenterId = primaryRenterId,
+                PropertyId = propertyIdForLease,
+                RenterIds = lease.RenterIds.ToList(),
+                Type = "Utility",
+                Description = $"Water - {DateTime.Today.AddMonths(-1):MMMM yyyy}",
+                AmountDue = random.Next(40, 80),
+                AmountPaid = random.Next(0, 2) == 0 ? 0 : random.Next(20, 40),
+                DueDate = DateTime.Today.AddDays(random.Next(-30, 10))
+            });
+
+            // Late fee for some units
+            if (random.Next(0, 3) == 0)
+            {
                 debtItems.Add(new DebtItem
                 {
                     LeaseId = lease.Id,
@@ -169,11 +213,11 @@ public class DataGenerationController : ControllerBase
                     RenterId = primaryRenterId,
                     PropertyId = propertyIdForLease,
                     RenterIds = lease.RenterIds.ToList(),
-                    Type = "Utility",
-                    Description = $"Electricity - {DateTime.Today.AddMonths(-1):MMMM yyyy}",
-                    AmountDue = random.Next(80, 200),
-                    AmountPaid = random.Next(0, 2) == 0 ? 0 : random.Next(80, 200),
-                    DueDate = DateTime.Today.AddDays(random.Next(-30, 10))
+                    Type = "Late Fee",
+                    Description = $"Late payment fee - {DateTime.Today.AddMonths(-1):MMMM yyyy}",
+                    AmountDue = 50,
+                    AmountPaid = 0,
+                    DueDate = DateTime.Today.AddDays(-15)
                 });
             }
         }
@@ -203,23 +247,127 @@ public class DataGenerationController : ControllerBase
         _session.SaveChanges();
 
         var payments = new List<Payment>();
-        var paidDebts = debtItems.Where(d => d.AmountPaid > 0).Take(5).ToList();
 
-        foreach (var debt in paidDebts)
+        // Payment scenario 1: Multiple renters paying their shares with different methods
+        var sharedLease = leases.FirstOrDefault(l => l.RenterIds.Count > 1);
+        if (sharedLease != null)
         {
-            payments.Add(new Payment
+            var rentDebt = debtItems.FirstOrDefault(d => d.LeaseId == sharedLease.Id && d.Type == "Rent" && d.AmountPaid > 0);
+            var utilityDebt = debtItems.FirstOrDefault(d => d.LeaseId == sharedLease.Id && d.Type == "Utility" && d.AmountPaid > 0);
+
+            if (rentDebt != null && sharedLease.RenterIds.Count >= 2)
             {
-                PaymentDate = DateTime.Today.AddDays(random.Next(-60, -1)),
-                TotalAmountReceived = debt.AmountPaid,
-                PaymentMethods = new List<PaymentMethod>
+                var renter1 = sharedLease.RenterIds[0];
+                var renter2 = sharedLease.RenterIds[1];
+                var share1 = rentDebt.AmountPaid / 2;
+                var share2 = rentDebt.AmountPaid - share1;
+
+                payments.Add(new Payment
                 {
-                    new PaymentMethod { Method = random.Next(0, 2) == 0 ? "Card" : "Check", Amount = debt.AmountPaid, Details = random.Next(0, 2) == 0 ? "VISA ****1234" : $"Check #{random.Next(1000, 9999)}" }
-                },
-                Allocation = new List<PaymentAllocation>
+                    PaymentDate = DateTime.Today.AddDays(random.Next(-60, -1)),
+                    TotalAmountReceived = rentDebt.AmountPaid,
+                    PaymentMethods = new List<PaymentMethod>
+                    {
+                        new PaymentMethod { Method = "Card", Amount = share1, Details = "VISA ****1234" },
+                        new PaymentMethod { Method = "Check", Amount = share2, Details = $"Check #{random.Next(1000, 9999)}" }
+                    },
+                    Allocation = new List<PaymentAllocation>
+                    {
+                        new PaymentAllocation { DebtItemId = rentDebt.Id!, AmountApplied = share1, RenterId = renter1 },
+                        new PaymentAllocation { DebtItemId = rentDebt.Id!, AmountApplied = share2, RenterId = renter2 }
+                    }
+                });
+            }
+        }
+
+        // Payment scenario 2: Single payment covering multiple allocations (rent + utilities + guest fee)
+        var leaseWithMultipleDebts = leases.FirstOrDefault(l =>
+            debtItems.Count(d => d.LeaseId == l.Id && d.AmountPaid > 0) >= 2);
+
+        if (leaseWithMultipleDebts != null)
+        {
+            var rentDebt = debtItems.FirstOrDefault(d => d.LeaseId == leaseWithMultipleDebts.Id && d.Type == "Rent" && d.AmountPaid > 0);
+            var utilityDebt = debtItems.FirstOrDefault(d => d.LeaseId == leaseWithMultipleDebts.Id && d.Type == "Utility" && d.AmountPaid > 0);
+            var primaryRenter = leaseWithMultipleDebts.RenterIds.FirstOrDefault();
+
+            if (rentDebt != null && utilityDebt != null && primaryRenter != null)
+            {
+                var totalAmount = rentDebt.AmountPaid + utilityDebt.AmountPaid;
+                payments.Add(new Payment
                 {
-                    new PaymentAllocation { DebtItemId = debt.Id!, AmountApplied = debt.AmountPaid }
+                    PaymentDate = DateTime.Today.AddDays(random.Next(-60, -1)),
+                    TotalAmountReceived = totalAmount,
+                    PaymentMethods = new List<PaymentMethod>
+                    {
+                        new PaymentMethod { Method = "Bank Transfer", Amount = totalAmount, Details = "ACH Transfer" }
+                    },
+                    Allocation = new List<PaymentAllocation>
+                    {
+                        new PaymentAllocation { DebtItemId = rentDebt.Id!, AmountApplied = rentDebt.AmountPaid, RenterId = primaryRenter },
+                        new PaymentAllocation { DebtItemId = utilityDebt.Id!, AmountApplied = utilityDebt.AmountPaid, RenterId = primaryRenter }
+                    }
+                });
+            }
+        }
+
+        // Payment scenario 3: Payment covering rent + utility + guest fee
+        var guestFeeDebt = debtItems.FirstOrDefault(d => d.Type == "Guest Fee");
+        if (guestFeeDebt != null && guestFeeDebt.RenterId != null)
+        {
+            var renterLeaseForGuest = leases.FirstOrDefault(l => l.RenterIds.Contains(guestFeeDebt.RenterId));
+            if (renterLeaseForGuest != null)
+            {
+                var rentDebtForGuest = debtItems.FirstOrDefault(d => d.LeaseId == renterLeaseForGuest.Id && d.Type == "Rent" && d.AmountPaid > 0);
+                var utilDebtForGuest = debtItems.FirstOrDefault(d => d.LeaseId == renterLeaseForGuest.Id && d.Type == "Utility" && d.AmountPaid > 0);
+
+                if (rentDebtForGuest != null && utilDebtForGuest != null)
+                {
+                    // Mark guest fee as paid
+                    guestFeeDebt.AmountPaid = guestFeeDebt.AmountDue;
+
+                    var totalWithGuest = rentDebtForGuest.AmountPaid + utilDebtForGuest.AmountPaid + guestFeeDebt.AmountPaid;
+                    payments.Add(new Payment
+                    {
+                        PaymentDate = DateTime.Today.AddDays(random.Next(-30, -1)),
+                        TotalAmountReceived = totalWithGuest,
+                        PaymentMethods = new List<PaymentMethod>
+                        {
+                            new PaymentMethod { Method = "Card", Amount = totalWithGuest, Details = "MasterCard ****5678" }
+                        },
+                        Allocation = new List<PaymentAllocation>
+                        {
+                            new PaymentAllocation { DebtItemId = rentDebtForGuest.Id!, AmountApplied = rentDebtForGuest.AmountPaid, RenterId = guestFeeDebt.RenterId },
+                            new PaymentAllocation { DebtItemId = utilDebtForGuest.Id!, AmountApplied = utilDebtForGuest.AmountPaid, RenterId = guestFeeDebt.RenterId },
+                            new PaymentAllocation { DebtItemId = guestFeeDebt.Id!, AmountApplied = guestFeeDebt.AmountPaid, RenterId = guestFeeDebt.RenterId }
+                        }
+                    });
                 }
-            });
+            }
+        }
+
+        // Additional simple payments for other paid debts
+        var otherPaidDebts = debtItems.Where(d => d.AmountPaid > 0 &&
+            !payments.Any(p => p.Allocation.Any(a => a.DebtItemId == d.Id))).Take(3).ToList();
+
+        foreach (var debt in otherPaidDebts)
+        {
+            var payingRenter = debt.RenterIds.FirstOrDefault();
+            if (payingRenter != null)
+            {
+                payments.Add(new Payment
+                {
+                    PaymentDate = DateTime.Today.AddDays(random.Next(-60, -1)),
+                    TotalAmountReceived = debt.AmountPaid,
+                    PaymentMethods = new List<PaymentMethod>
+                    {
+                        new PaymentMethod { Method = random.Next(0, 2) == 0 ? "Card" : "Check", Amount = debt.AmountPaid, Details = random.Next(0, 2) == 0 ? "VISA ****1234" : $"Check #{random.Next(1000, 9999)}" }
+                    },
+                    Allocation = new List<PaymentAllocation>
+                    {
+                        new PaymentAllocation { DebtItemId = debt.Id!, AmountApplied = debt.AmountPaid, RenterId = payingRenter }
+                    }
+                });
+            }
         }
 
         foreach (var payment in payments)

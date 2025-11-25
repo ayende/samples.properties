@@ -20,4 +20,5 @@ public class PaymentAllocation
 {
     public string DebtItemId { get; set; } = string.Empty;
     public decimal AmountApplied { get; set; }
+    public string RenterId { get; set; } = string.Empty;
 }

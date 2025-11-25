@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using PropertySphere.Models;
+using PropertySphere.Services;
 using Raven.Client.Documents.Session;
 
 namespace PropertySphere.Controllers;
@@ -8,32 +9,24 @@ namespace PropertySphere.Controllers;
 [Route("api/[controller]")]
 public class PaymentsController : ControllerBase
 {
-    private readonly IDocumentSession _session;
+    private readonly IAsyncDocumentSession _session;
 
-    public PaymentsController(IDocumentSession session)
+    public PaymentsController(IAsyncDocumentSession session)
     {
         _session = session;
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] Payment payment)
+    public async Task<IActionResult> Create([FromBody] Payment payment)
     {
-        _session.Store(payment);
-        _session.Load<DebtItem>( // preload debt items
-            payment.Allocation.Select(x => x.DebtItemId));
-
-        foreach (var allocation in payment.Allocation)
+        try
         {
-            var debtItem = _session.Load<DebtItem>(allocation.DebtItemId);
-            if (debtItem == null)
-            {
-                return BadRequest($"Debt item not found: {allocation.DebtItemId}");
-            }
-
-            debtItem.AmountPaid += allocation.AmountApplied;
+            await PaymentService.ProcessPaymentAsync(_session, payment);
+            return Ok(payment);
         }
-
-        _session.SaveChanges();
-        return Ok(payment);
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 }
