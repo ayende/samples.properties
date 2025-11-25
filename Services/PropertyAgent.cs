@@ -26,9 +26,9 @@ public static class PropertyAgent
         required public string Card { get; set; }
     }
 
-    public static Task Create(IDocumentStore store)
+    public static void Create(IDocumentStore store)
     {
-        return store.AI.CreateAgentAsync(
+        store.AI.CreateAgent(
             new AiAgentConfiguration
             {
                 Name = "Property Assistant",

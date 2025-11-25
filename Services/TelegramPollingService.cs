@@ -39,8 +39,6 @@ public class TelegramPollingService : IHostedService
             return;
         }
 
-        await PropertyAgent.Create(_documentStore);
-
         _botClient = new TelegramBotClient(botToken);
         _cts = new CancellationTokenSource();
 
@@ -66,7 +64,7 @@ public class TelegramPollingService : IHostedService
                 {
                     var renter = await session.LoadAsync<Renter>(item.Result.RenterId!);
                     await ProcessMessageAsync(_botClient, renter.TelegramChatId!,
-                        $"Uploaded an image with caption: {item.Result.Caption}" +
+                        $"Uploaded an image with caption: {item.Result.Caption}\r\n" +
                         $"Image description: {item.Result.Description}.",
                         cancellationToken);
                 }
