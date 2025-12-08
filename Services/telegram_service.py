@@ -5,7 +5,7 @@ from datetime import datetime, date
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.constants import ParseMode, ChatAction
-
+from ravendb.documents.operations.ai.agents import AiConversationCreationOptions
 from models import Renter, Lease, ServiceRequest, Photo
 from services.property_agent import PropertyAgent
 from config import settings
@@ -75,18 +75,19 @@ class TelegramService:
         chat_id = str(update.effective_chat.id)
         
         with self.document_store.open_session() as session:
-            renter = session.query(object_type=Renter).where_equals(
+            renters = list(session.query(object_type=Renter).where_equals(
                 "telegram_chat_id", chat_id
-            ).first_or_default()
+            ).take(1))
             
-            if not renter:
+            if not renters:
                 await update.message.reply_text(
                     "Sorry, your Telegram account is not linked to a renter profile. "
                     "Please contact property management."
                 )
                 return
             
-            # Get photo file
+            renter = renters[0]
+            
             if update.message.photo:
                 photo_file = await update.message.photo[-1].get_file()
                 file_name = "image.jpg"
@@ -94,17 +95,14 @@ class TelegramService:
                 photo_file = await update.message.document.get_file()
                 file_name = update.message.document.file_name or "image.jpg"
                 
-                # Check if it's a JPEG
                 if not file_name.lower().endswith(('.jpg', '.jpeg')):
                     await update.message.reply_text("Sorry, only JPG/JPEG images are accepted.")
                     return
             else:
                 return
             
-            # Download photo
             photo_bytes = await photo_file.download_as_bytearray()
             
-            # Create photo document
             photo = Photo(
                 ConversationId=self.get_conversation_id(chat_id),
                 Id=f"photos/{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -113,8 +111,7 @@ class TelegramService:
             )
             
             session.store(photo)
-            # Note: Attachment handling would require RavenDB attachments API
-            # session.advanced.attachments.store(photo, file_name, photo_bytes)
+            session.advanced.attachments.store(photo, file_name, photo_bytes)
             session.save_changes()
             
             await update.message.reply_text(
@@ -129,75 +126,116 @@ class TelegramService:
         logger.info(f"Received message from {chat_id}: {message_text}")
         
         with self.document_store.open_session() as session:
-            renter = session.query(object_type=Renter).where_equals(
-                "telegram_chat_id", chat_id
-            ).first_or_default()
+            renters = list(session.query(object_type=Renter).where_equals(
+                "TelegramChatId", chat_id
+            ).take(1))
             
-            if not renter:
+            if not renters:
                 await update.message.reply_text(
                     "Sorry, your Telegram account is not linked to a renter profile. "
                     "Please contact property management."
                 )
                 return
-            
+
             # Get renter's units
-            renter_units = list(
+            leases = list(
                 session.query(object_type=Lease)
-                .where_in("RenterIds", [renter.Id])
-                .select(lambda l: l.UnitId)
+                .where_in("RenterIds", [renters[0].Id])
             )
+            renter_units = [lease.UnitId for lease in leases]
             
             # Send typing indicator
             await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
             
-            # Process with AI agent (simplified - actual implementation would use RavenDB AI)
-            # This is a placeholder for the actual AI conversation
             conversation_id = self.get_conversation_id(chat_id)
+            renter = renters[0]
             
-            # Simulate AI response
-            response_text = f"I received your message: {message_text}\n\nThis is a placeholder response. " \
-                          "The actual implementation would use RavenDB's AI agent API to process your request."
             
-            followups = [
-                "What's my rent?",
-                "Check utility usage",
-                "Outstanding debts",
-                "Service requests"
-            ]
-            
-            # Create reply keyboard
-            keyboard = [[KeyboardButton(text)] for text in followups]
-            reply_markup = ReplyKeyboardMarkup(
-                keyboard,
-                resize_keyboard=True,
-                one_time_keyboard=True
+            conversation = self.document_store.ai.conversation(
+                PropertyAgent.AGENT_ID,
+                conversation_id,
+                AiConversationCreationOptions(
+                    parameters={
+                        "renterId": renter.Id,
+                        "renterUnits": renter_units,
+                        "currentDate": date.today().strftime("%Y-%m-%d")
+                    }
+                )
             )
+            
+            async def handle_charge_card(args):
+                """Handle charging a card for debts"""
+                from services.payment_service import PaymentService
+                
+                async with self.document_store.open_session() as pay_session:
+                    renter_with_card = pay_session.load(renter.Id, object_type=Renter)
+                    card = next((c for c in renter_with_card.CreditCards if c.Last4Digits == args["Card"]), None)
+                    
+                    if not card:
+                        raise ValueError(f"Card ending in {args['Card']} not found in your profile. Please use a registered card.")
+                    
+                    total_paid = PaymentService.create_payment_for_debts_with_card(
+                        pay_session,
+                        renter.Id,
+                        args["DebtItemIds"],
+                        card,
+                        args["PaymentMethod"]
+                    )
+                    
+                    return f"Successfully charged ${total_paid:.2f} to {card.Type} ending in {card.Last4Digits}."
+            
+            conversation.handle("ChargeCard", handle_charge_card, "SendErrorsToModel")
+            
+            async def handle_create_service_request(args):
+                """Handle creating a service request"""
+                async with self.document_store.open_session() as sr_session:
+                    unit_id = renter_units[0] if renter_units else None
+                    property_id = unit_id.rsplit('/', 1)[0] if unit_id else None
+                    
+                    service_request = ServiceRequest(
+                        RenterId=renter.Id,
+                        UnitId=unit_id,
+                        Type=args["Type"],
+                        Description=args["Description"],
+                        Status="Open",
+                        OpenedAt=datetime.utcnow(),
+                        PropertyId=property_id
+                    )
+                    
+                    sr_session.store(service_request)
+                    sr_session.save_changes()
+                    
+                    return f"Service request created with ID `{service_request.Id}` for your unit."
+            
+            conversation.handle("CreateServiceRequest", handle_create_service_request, "SendErrorsToModel")
+            
+            conversation.set_user_prompt(message_text)
+            
+            answer = conversation.run()
+
+            answer_text = answer.answer['Answer']
+            followups = answer.answer['Followups']
+            
+            # Create reply keyboard if there are followups
+            reply_markup = None
+            if followups:
+                keyboard = [[KeyboardButton(text)] for text in followups]
+                reply_markup = ReplyKeyboardMarkup(
+                    keyboard,
+                    resize_keyboard=True,
+                    one_time_keyboard=True
+                )
             
             # Send response
             try:
                 await update.message.reply_text(
-                    response_text,
+                    answer_text,
                     parse_mode=ParseMode.MARKDOWN,
                     reply_markup=reply_markup
                 )
             except Exception:
                 # Fallback to plain text if markdown fails
                 await update.message.reply_text(
-                    response_text,
+                    answer_text,
                     reply_markup=reply_markup
                 )
-    
-    async def send_notification(self, telegram_chat_id: str, message: str):
-        """Send a notification to a user"""
-        if not self.application:
-            logger.warning("Telegram bot not initialized")
-            return
-        
-        try:
-            await self.application.bot.send_message(
-                chat_id=int(telegram_chat_id),
-                text=message
-            )
-            logger.info(f"Sent notification to {telegram_chat_id}")
-        except Exception as e:
-            logger.error(f"Failed to send notification to {telegram_chat_id}: {e}")

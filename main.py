@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
     # Start Telegram service
     if settings.telegram_bot_token and settings.telegram_bot_token != "YOUR_TELEGRAM_BOT_TOKEN_HERE":
         from services.telegram_service import TelegramService
+        print ("Starting Telegram service...")
         telegram_service = TelegramService(store)
         telegram_task = asyncio.create_task(telegram_service.start())
         app.state.telegram_service = telegram_service
