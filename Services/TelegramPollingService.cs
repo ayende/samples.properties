@@ -283,19 +283,8 @@ public class TelegramPollingService : IHostedService
         await botClient.SendChatAction(chatId, ChatAction.Typing, cancellationToken: cancellationToken);
 
         var msg = new StringBuilder();
-        Task<Message>? previous = null;
 
-        var result = await conversation.StreamAsync<PropertyAgent.Reply>(x => x.Answer, s =>
-        {
-            msg.Append(s);
-            previous = UpdateOrCreateMessageAsync(botClient, chatId, msg.ToString(), previous, cancellationToken);
-            return Task.CompletedTask;
-        }, cancellationToken);
-
-        if (previous != null)
-            await previous;
-
-        await UpdateOrCreateMessageAsync(botClient, chatId, result.Answer.Answer, previous, cancellationToken);
+        var result = await conversation.RunAsync<PropertyAgent.Reply>(cancellationToken);
 
         var replyMarkup = new ReplyKeyboardMarkup(result.Answer.Followups
             .Select(text => new KeyboardButton(text))
@@ -307,35 +296,10 @@ public class TelegramPollingService : IHostedService
 
         await botClient.SendMessage(
             chatId,
-            "What next?",
+            result.Answer.Answer,
             replyMarkup: replyMarkup,
             cancellationToken: cancellationToken);
-    }
 
-    private static async Task<Message> UpdateOrCreateMessageAsync(
-        ITelegramBotClient botClient,
-        string chatId,
-        string text,
-        Task<Message>? previous,
-        CancellationToken cancellationToken)
-    {
-        // If this is the first chunk, create a new message
-        if (previous == null)
-        {
-            return await SendMessageSafeAsync(botClient, chatId, text, cancellationToken);
-        }
-
-        // Wait for previous operation to complete before starting a new one
-        if (previous.IsCompleted is false)
-            return await previous;
-
-        var previousMessage = await previous;
-
-        // Only edit if content has changed to avoid "message not modified" error
-        if (previousMessage.Text == text)
-            return previousMessage;
-
-        return await EditMessageSafeAsync(botClient, chatId, previousMessage.MessageId, text, cancellationToken);
     }
 
     private static async Task<Message> SendMessageSafeAsync(
@@ -353,25 +317,6 @@ public class TelegramPollingService : IHostedService
         {
             // If Markdown parsing fails, send as plain text
             return await botClient.SendMessage(chatId, text, cancellationToken: cancellationToken);
-        }
-    }
-
-    private static async Task<Message> EditMessageSafeAsync(
-        ITelegramBotClient botClient,
-        string chatId,
-        int messageId,
-        string text,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            // Try with Markdown first
-            return await botClient.EditMessageText(chatId, messageId, text, parseMode: ParseMode.Markdown, cancellationToken: cancellationToken);
-        }
-        catch (Telegram.Bot.Exceptions.ApiRequestException)
-        {
-            // If Markdown parsing fails, edit as plain text
-            return await botClient.EditMessageText(chatId, messageId, text, cancellationToken: cancellationToken);
         }
     }
 
