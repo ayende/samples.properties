@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
+from .base import EntityBase
 
 
-@dataclass
-class ServiceRequest:
+@dataclass(eq=False)
+class ServiceRequest(EntityBase):
     RenterId: str = ""
     Type: str = ""
     Description: str = ""

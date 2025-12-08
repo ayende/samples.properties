@@ -1,27 +1,27 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
-from decimal import Decimal
+from .base import EntityBase
 
 
-@dataclass
-class PaymentMethod:
+@dataclass(eq=False)
+class PaymentMethod(EntityBase):
     Method: str = ""
-    Amount: Decimal = Decimal("0.00")
+    Amount: float = 0.0
     Details: str = ""
 
 
-@dataclass
-class PaymentAllocation:
+@dataclass(eq=False)
+class PaymentAllocation(EntityBase):
     DebtItemId: str = ""
-    AmountApplied: Decimal = Decimal("0.00")
+    AmountApplied: float = 0.0
     RenterId: str = ""
 
 
-@dataclass
-class Payment:
+@dataclass(eq=False)
+class Payment(EntityBase):
     PaymentDate: datetime = field(default_factory=datetime.now)
-    TotalAmountReceived: Decimal = Decimal("0.00")
+    TotalAmountReceived: float = 0.0
     PaymentMethods: list[PaymentMethod] = field(default_factory=list)
     Allocation: list[PaymentAllocation] = field(default_factory=list)
     Id: Optional[str] = None

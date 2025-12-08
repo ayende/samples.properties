@@ -24,19 +24,16 @@ async def create(service_request: ServiceRequest):
 
 
 @router.get("/status/{status}")
-async def get_by_status(status: str, bounds_wkt: Optional[str] = None):
+async def get_by_status(status: str, boundsWkt: Optional[str] = None):
     """Get service requests by status, optionally filtered by spatial bounds"""
     async with get_session() as session:
         # Query service requests by status
-        query = session.query(object_type=ServiceRequest).where_equals("Status", status)
+        query = session.query_index("ServiceRequests/ByStatusAndLocation", object_type=ServiceRequest).where_equals("Status", status)
         query = query.include("PropertyId").include("UnitId")
         
         # Apply spatial filtering if bounds provided
-        if bounds_wkt:
-            query = query.spatial(
-                lambda x: x.point("Location"),
-                lambda criteria: criteria.relates_to_shape(bounds_wkt, "Within")
-            )
+        if boundsWkt:
+            query = query.spatial("Location", lambda x: x.within(boundsWkt))
         
         # Order by opened date descending and limit to 10
         requests = list(query.order_by_descending("OpenedAt").take(10))
@@ -70,7 +67,7 @@ async def get_by_status(status: str, bounds_wkt: Optional[str] = None):
         return result
 
 
-@router.put("/{request_id}/status")
+@router.put("/status/{request_id:path}")
 async def update_status(request_id: str, update_request: UpdateStatusRequest):
     """Update service request status"""
     async with get_session() as session:

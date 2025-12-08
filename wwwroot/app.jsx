@@ -328,7 +328,7 @@ function ServiceRequests() {
             await fetch(`${API_BASE}/servicerequests/status/${requestId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus })
+                body: JSON.stringify({ Status: newStatus })
             });
             loadRequests();
             setSelectedRequest(null);
@@ -411,15 +411,15 @@ function ServiceRequests() {
                     <div className="space-y-4 mb-6">
                         <div>
                             <label className="text-gray-400 text-sm">Type</label>
-                            <p className="text-lg font-medium">{selectedrequest.Type}</p>
+                            <p className="text-lg font-medium">{selectedRequest.Type}</p>
                         </div>
                         <div>
                             <label className="text-gray-400 text-sm">Description</label>
-                            <p className="text-lg">{selectedrequest.Description}</p>
+                            <p className="text-lg">{selectedRequest.Description}</p>
                         </div>
                         <div>
                             <label className="text-gray-400 text-sm">Current Status</label>
-                            <p className="text-lg font-medium text-blue-400">{selectedrequest.Status}</p>
+                            <p className="text-lg font-medium text-blue-400">{selectedRequest.Status}</p>
                         </div>
                         <div>
                             <label className="text-gray-400 text-sm">Opened At</label>
@@ -507,11 +507,11 @@ function Management() {
         params.set('view', view);
 
         if (selectedProperty) {
-            params.set('property', selectedproperty.Id);
+            params.set('property', selectedProperty.Id);
         }
 
         if (selectedUnit) {
-            params.set('unit', selectedunit.Id);
+            params.set('unit', selectedUnit.Id);
         }
 
         const newUrl = `${window.location.pathname}?${params.toString()}`;
@@ -632,7 +632,7 @@ function Management() {
         const newOffset = weekOffset + direction;
         setWeekOffset(newOffset);
         if (selectedUnit) {
-            loadUtilityData(selectedunit.Id, newOffset, viewMode);
+            loadUtilityData(selectedUnit.Id, newOffset, viewMode);
         }
     };
 
@@ -641,7 +641,7 @@ function Management() {
         setViewMode(newMode);
         setWeekOffset(0);
         if (selectedUnit) {
-            loadUtilityData(selectedunit.Id, 0, newMode);
+            loadUtilityData(selectedUnit.Id, 0, newMode);
         }
     };
 
@@ -663,7 +663,7 @@ function Management() {
                         className={`px-4 py-2 rounded-lg transition-smooth ${view === 'units' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                             }`}
                     >
-                        Units - {selectedproperty.Name}
+                        Units - {selectedProperty.Name}
                     </button>
                 )}
                 {selectedUnit && (
@@ -819,16 +819,16 @@ function Management() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <h4 className="text-lg font-semibold text-yellow-400 mb-3">⚡ Electricity Usage</h4>
-                                    {utilityData.powerUsage && utilityData.powerUsage.length > 0 ? (
+                                    {utilityData.PowerUsage && utilityData.PowerUsage.length > 0 ? (
                                         <div className="space-y-2">
                                             <div className="bg-gray-900 rounded-lg p-4">
                                                 <p className="text-gray-400 text-sm mb-2">Total Usage {viewMode === 'hourly' ? '(48h)' : '(6 weeks)'}</p>
                                                 <p className="text-3xl font-bold text-yellow-400">
-                                                    {utilityData.powerUsage.reduce((sum, entry) => sum + (entry.value || 0), 0).toFixed(2)} kWh
+                                                    {utilityData.PowerUsage.reduce((sum, entry) => sum + (entry.Value || 0), 0).toFixed(2)} kWh
                                                 </p>
                                                 {viewMode === 'hourly' && (
                                                     <p className="text-sm text-gray-500 mt-1">
-                                                        Avg: {(utilityData.powerUsage.reduce((sum, entry) => sum + (entry.value || 0), 0) / utilityData.powerUsage.length).toFixed(2)} kWh/hr
+                                                        Avg: {(utilityData.PowerUsage.reduce((sum, entry) => sum + (entry.Value || 0), 0) / utilityData.PowerUsage.length).toFixed(2)} kWh/hr
                                                     </p>
                                                 )}
                                             </div>
@@ -836,12 +836,12 @@ function Management() {
                                                 <p className="text-gray-400 text-sm mb-3">Usage Graph</p>
                                                 <div className="flex items-end justify-between gap-1" style={{ height: '128px' }}>
                                                     {(() => {
-                                                        const validEntries = utilityData.powerUsage.filter(e => e.value != null);
+                                                        const validEntries = utilityData.PowerUsage.filter(e => e.Value != null);
                                                         if (validEntries.length === 0) return <p className="text-gray-500 text-sm">No data</p>;
-                                                        const maxValue = Math.max(...validEntries.map(e => e.value));
+                                                        const maxValue = Math.max(...validEntries.map(e => e.Value));
                                                         const step = viewMode === 'hourly' ? 4 : Math.ceil(validEntries.length / 20);
                                                         return validEntries.filter((_, i) => i % step === 0).map((entry, idx) => {
-                                                            const heightPx = Math.max((entry.value / maxValue) * 120, 4);
+                                                            const heightPx = Math.max((entry.Value / maxValue) * 120, 4);
                                                             return (
                                                                 <div key={idx} className="flex-1 group relative">
                                                                     <div
@@ -849,8 +849,8 @@ function Management() {
                                                                         style={{ height: `${heightPx}px` }}
                                                                     ></div>
                                                                     <div className="absolute -top-8 hidden group-hover:block bg-gray-800 text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
-                                                                        <div className="text-yellow-400 font-bold">{entry.value.toFixed(2)} kWh</div>
-                                                                        <div className="text-gray-400">{new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: viewMode === 'hourly' ? 'numeric' : undefined })}</div>
+                                                                        <div className="text-yellow-400 font-bold">{entry.Value.toFixed(2)} kWh</div>
+                                                                        <div className="text-gray-400">{new Date(entry.Timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: viewMode === 'hourly' ? 'numeric' : undefined })}</div>
                                                                     </div>
                                                                 </div>
                                                             );
@@ -861,15 +861,15 @@ function Management() {
                                             <div className="bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
                                                 <p className="text-gray-400 text-sm mb-2">{viewMode === 'hourly' ? 'Hourly Breakdown' : 'Daily Breakdown'}</p>
                                                 <div className="space-y-1">
-                                                    {utilityData.powerUsage.filter(e => e.value != null).slice().reverse().map((entry, idx) => (
+                                                    {utilityData.PowerUsage.filter(e => e.Value != null).slice().reverse().map((entry, idx) => (
                                                         <div key={idx} className="flex justify-between text-sm">
                                                             <span className="text-gray-400">
                                                                 {viewMode === 'hourly'
-                                                                    ? new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-                                                                    : new Date(entry.timestamp).toLocaleDateString()
+                                                                    ? new Date(entry.Timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                                                                    : new Date(entry.Timestamp).toLocaleDateString()
                                                                 }
                                                             </span>
-                                                            <span className="text-yellow-300 font-medium">{entry.value.toFixed(2)} kWh</span>
+                                                            <span className="text-yellow-300 font-medium">{entry.Value.toFixed(2)} kWh</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -882,16 +882,16 @@ function Management() {
 
                                 <div>
                                     <h4 className="text-lg font-semibold text-blue-400 mb-3">💧 Water Usage</h4>
-                                    {utilityData.waterUsage && utilityData.waterUsage.length > 0 ? (
+                                    {utilityData.WaterUsage && utilityData.WaterUsage.length > 0 ? (
                                         <div className="space-y-2">
                                             <div className="bg-gray-900 rounded-lg p-4">
                                                 <p className="text-gray-400 text-sm mb-2">Total Usage {viewMode === 'hourly' ? '(48h)' : '(6 weeks)'}</p>
                                                 <p className="text-3xl font-bold text-blue-400">
-                                                    {utilityData.waterUsage.reduce((sum, entry) => sum + (entry.value || 0), 0).toFixed(2)} gal
+                                                    {utilityData.WaterUsage.reduce((sum, entry) => sum + (entry.Value || 0), 0).toFixed(2)} gal
                                                 </p>
                                                 {viewMode === 'hourly' && (
                                                     <p className="text-sm text-gray-500 mt-1">
-                                                        Avg: {(utilityData.waterUsage.reduce((sum, entry) => sum + (entry.value || 0), 0) / utilityData.waterUsage.length).toFixed(2)} gal/hr
+                                                        Avg: {(utilityData.WaterUsage.reduce((sum, entry) => sum + (entry.Value || 0), 0) / utilityData.WaterUsage.length).toFixed(2)} gal/hr
                                                     </p>
                                                 )}
                                             </div>
@@ -899,12 +899,12 @@ function Management() {
                                                 <p className="text-gray-400 text-sm mb-3">Usage Graph</p>
                                                 <div className="flex items-end justify-between gap-1" style={{ height: '128px' }}>
                                                     {(() => {
-                                                        const validEntries = utilityData.waterUsage.filter(e => e.value != null);
+                                                        const validEntries = utilityData.WaterUsage.filter(e => e.Value != null);
                                                         if (validEntries.length === 0) return <p className="text-gray-500 text-sm">No data</p>;
-                                                        const maxValue = Math.max(...validEntries.map(e => e.value));
+                                                        const maxValue = Math.max(...validEntries.map(e => e.Value));
                                                         const step = viewMode === 'hourly' ? 4 : Math.ceil(validEntries.length / 20);
                                                         return validEntries.filter((_, i) => i % step === 0).map((entry, idx) => {
-                                                            const heightPx = Math.max((entry.value / maxValue) * 120, 4);
+                                                            const heightPx = Math.max((entry.Value / maxValue) * 120, 4);
                                                             return (
                                                                 <div key={idx} className="flex-1 group relative">
                                                                     <div
@@ -912,8 +912,8 @@ function Management() {
                                                                         style={{ height: `${heightPx}px` }}
                                                                     ></div>
                                                                     <div className="absolute -top-8 hidden group-hover:block bg-gray-800 text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
-                                                                        <div className="text-blue-400 font-bold">{entry.value.toFixed(2)} gal</div>
-                                                                        <div className="text-gray-400">{new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: viewMode === 'hourly' ? 'numeric' : undefined })}</div>
+                                                                        <div className="text-blue-400 font-bold">{entry.Value.toFixed(2)} gal</div>
+                                                                        <div className="text-gray-400">{new Date(entry.Timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: viewMode === 'hourly' ? 'numeric' : undefined })}</div>
                                                                     </div>
                                                                 </div>
                                                             );
@@ -924,15 +924,15 @@ function Management() {
                                             <div className="bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
                                                 <p className="text-gray-400 text-sm mb-2">{viewMode === 'hourly' ? 'Hourly Breakdown' : 'Daily Breakdown'}</p>
                                                 <div className="space-y-1">
-                                                    {utilityData.waterUsage.filter(e => e.value != null).slice().reverse().map((entry, idx) => (
+                                                    {utilityData.WaterUsage.filter(e => e.Value != null).slice().reverse().map((entry, idx) => (
                                                         <div key={idx} className="flex justify-between text-sm">
                                                             <span className="text-gray-400">
                                                                 {viewMode === 'hourly'
-                                                                    ? new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-                                                                    : new Date(entry.timestamp).toLocaleDateString()
+                                                                    ? new Date(entry.Timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                                                                    : new Date(entry.Timestamp).toLocaleDateString()
                                                                 }
                                                             </span>
-                                                            <span className="text-blue-300 font-medium">{entry.value.toFixed(2)} gal</span>
+                                                            <span className="text-blue-300 font-medium">{entry.Value.toFixed(2)} gal</span>
                                                         </div>
                                                     ))}
                                                 </div>

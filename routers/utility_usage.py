@@ -79,11 +79,11 @@ async def get_utility_usage(
         
         # Convert to data points
         power_usage = [
-            UsageDataPoint(Timestamp=entry.Timestamp, Value=entry.Value)
+            UsageDataPoint(Timestamp=entry.timestamp, Value=entry.values[0])
             for entry in (power_entries or [])
         ]
         water_usage = [
-            UsageDataPoint(Timestamp=entry.Timestamp, Value=entry.Value)
+            UsageDataPoint(Timestamp=entry.timestamp, Value=entry.values[0])
             for entry in (water_entries or [])
         ]
         

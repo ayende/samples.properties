@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
 from typing import Optional
+from .base import EntityBase
 
 
-@dataclass
-class Property:
+@dataclass(eq=False)
+class Property(EntityBase):
     Name: str = ""
     Address: str = ""
     TotalUnits: int = 0

@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter
 from database import get_session
 from models import Lease, Unit
+from dataclasses import asdict
 
 router = APIRouter()
 
@@ -38,8 +39,8 @@ async def terminate(lease_id: str):
             return {"error": "Unit not found"}
         
         # Set end date and mark unit as vacant
-        lease.EndDate = datetime.today().date()
-        unit.VacantFrom = datetime.today().date()
+        lease.EndDate = datetime.combine(datetime.today().date(), datetime.min.time())
+        unit.VacantFrom = datetime.combine(datetime.today().date(), datetime.min.time())
         
         session.save_changes()
         return lease
@@ -49,17 +50,16 @@ async def terminate(lease_id: str):
 async def get_by_unit(unit_id: str):
     """Get active lease for a unit"""
     async with get_session() as session:
-        today = datetime.today().date()
+        today = datetime.combine(datetime.today().date(), datetime.min.time())
         
         # Query for active lease
-        lease = (session.query(object_type=Lease)
-                 .where_equals("UnitId", unit_id)
-                 .where_greater_than_or_equal("EndDate", today)
-                 .where_less_than_or_equal("StartDate", today)
-                 .first_or_default())
-            
-    
-        if not lease:
+        leases = list(session.query(object_type=Lease)
+                      .where_equals("UnitId", unit_id)
+                      .where_greater_than_or_equal("EndDate", today)
+                      .where_less_than_or_equal("StartDate", today)
+                      .take(1))
+        
+        if not leases:
             return {"error": "Lease not found"}
         
-        return lease
+        return leases[0].as_dict()

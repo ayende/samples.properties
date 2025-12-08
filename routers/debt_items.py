@@ -10,17 +10,14 @@ router = APIRouter()
 
 
 @router.get("/missing")
-async def get_missing(bounds_wkt: str = None):
+async def get_missing(boundsWkt: str = None):
     """Get outstanding/missing debt items using the DebtItems/Outstanding index"""
     async with get_session() as session:
         # Query using the DebtItems/Outstanding index for items with outstanding amount > 0
         query = session.query_index("DebtItems/Outstanding").where_greater_than_or_equal("AmountOutstanding", 0)
         # Apply spatial filtering if bounds provided
-        if bounds_wkt:
-            query = query.spatial(
-                lambda x: x.point("Location"),
-                lambda criteria: criteria.relates_to_shape(bounds_wkt, "Within")
-            )
+        if boundsWkt:
+            query = query.spatial("Location", lambda x: x.within(boundsWkt))
         
         # Include related documents and order by due date
         query = query.include("RenterIds").include("PropertyId").order_by("DueDate").take(10)

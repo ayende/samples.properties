@@ -1,15 +1,15 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
-from decimal import Decimal
+from .base import EntityBase
 
 
-@dataclass
-class DebtItem:
+@dataclass(eq=False)
+class DebtItem(EntityBase):
     Type: str = ""
     Description: str = ""
-    AmountDue: Decimal = Decimal("0.00")
-    AmountPaid: Decimal = Decimal("0.00")
+    AmountDue: float = 0.0
+    AmountPaid: float = 0.0
     DueDate: datetime = field(default_factory=datetime.now)
     LeaseId: Optional[str] = None
     RenterId: Optional[str] = None

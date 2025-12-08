@@ -1,26 +1,36 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime, date
-from decimal import Decimal
+from ravendb.tools.utils import Utils
+from .base import EntityBase
 
 
-@dataclass
-class Lease:
+@dataclass(eq=False)
+class Lease(EntityBase):
     UnitId: str = ""
     RenterIds: list[str] = field(default_factory=list)
-    LeaseAmount: Decimal = Decimal("0.00")
+    LeaseAmount: float = 0.0
     StartDate: datetime = field(default_factory=datetime.now)
     EndDate: datetime = field(default_factory=datetime.now)
     LegalDocumentId: Optional[str] = None
-    PowerUnitPrice: Decimal = Decimal("0.12")  # default $0.12 per kWh
-    WaterUnitPrice: Decimal = Decimal("0.005")  # default $0.005 per gallon
+    PowerUnitPrice: float = 0.12  # default $0.12 per kWh
+    WaterUnitPrice: float = 0.005  # default $0.005 per gallon
     Id: Optional[str] = None
     
     @property
     def IsActive(self) -> bool:
         today = date.today()
+        if isinstance(self.StartDate, str):
+            self.StartDate = Utils.string_to_datetime(self.StartDate)
+        if isinstance(self.EndDate, str):
+            self.EndDate = Utils.string_to_datetime(self.EndDate)
         return self.StartDate.date() <= today <= self.EndDate.date()
     
+    def as_dict(self) -> dict:
+        data = self.__dict__.copy()
+        data["IsActive"] = self.IsActive
+        return data
+
     @classmethod
     def collection_name(cls) -> str:
         return "Leases"

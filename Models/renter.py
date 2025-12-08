@@ -1,16 +1,17 @@
 from dataclasses import dataclass, field
 from typing import Optional
+from .base import EntityBase
 
 
-@dataclass
-class CreditCard:
+@dataclass(eq=False)
+class CreditCard(EntityBase):
     Last4Digits: str = ""
     Type: str = ""  # Visa, MasterCard, Amex, Discover
     Expiration: str = ""  # MM/YY format
 
 
-@dataclass
-class Renter:
+@dataclass(eq=False)
+class Renter(EntityBase):
     FirstName: str = ""
     LastName: str = ""
     ContactEmail: str = ""

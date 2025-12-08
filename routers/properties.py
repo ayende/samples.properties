@@ -1,6 +1,7 @@
 """API router for properties"""
 from typing import Optional
 from fastapi import APIRouter, HTTPException
+from ravendb.documents.queries.spatial import PointField
 from database import get_session
 from models import Property, Unit
 
@@ -8,18 +9,15 @@ router = APIRouter()
 
 
 @router.get("")
-async def get_all(bounds_wkt: Optional[str] = None):
+async def get_all(boundsWkt: Optional[str] = None):
     """Get all properties, optionally filtered by spatial bounds"""
     async with get_session() as session:
         # Build query for properties
         query = session.query(object_type=Property)
         
         # Apply spatial filtering if bounds provided
-        if bounds_wkt:
-            query = query.spatial(
-                lambda x: x.point("Latitude", "Longitude"),
-                lambda criteria: criteria.relates_to_shape(bounds_wkt, "Within")
-            )
+        if boundsWkt:
+            query = query.spatial(PointField("Latitude", "Longitude"), lambda x: x.within(boundsWkt))
         
         properties = list(query)
         
