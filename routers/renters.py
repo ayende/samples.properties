@@ -6,12 +6,14 @@ from models import Renter
 router = APIRouter()
 
 
-@router.get("")
-async def get_all():
-    """Get all renters"""
+@router.get("/{renter_id}")
+async def get_by_id(renter_id: str):
+    """Get a renter by ID"""
     async with get_session() as session:
-        renters = list(session.query(object_type=Renter))
-        return renters
+        renter = session.load(renter_id, object_type=Renter)
+        if not renter:
+            return {"error": "Renter not found"}
+        return renter
 
 
 @router.post("")

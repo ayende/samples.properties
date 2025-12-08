@@ -106,10 +106,10 @@ class TelegramService:
             
             # Create photo document
             photo = Photo(
-                conversation_id=self.get_conversation_id(chat_id),
-                id=f"photos/{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                renter_id=renter.id,
-                caption=update.message.caption or update.message.text
+                ConversationId=self.get_conversation_id(chat_id),
+                Id=f"photos/{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                RenterId=renter.Id,
+                Caption=update.message.caption or update.message.text
             )
             
             session.store(photo)
@@ -143,8 +143,8 @@ class TelegramService:
             # Get renter's units
             renter_units = list(
                 session.query(object_type=Lease)
-                .where_in("renter_ids", [renter.id])
-                .select(lambda l: l.unit_id)
+                .where_in("RenterIds", [renter.Id])
+                .select(lambda l: l.UnitId)
             )
             
             # Send typing indicator

@@ -12,7 +12,7 @@ async def create(payment: Payment):
     """Process a payment"""
     async with get_session() as session:
         try:
-            await PaymentService.process_payment(session, payment)
+            PaymentService.process_payment(session, payment)
             return payment
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))

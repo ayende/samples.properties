@@ -1,5 +1,5 @@
 """API router for units"""
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from database import get_session
 from models import Unit
 
@@ -10,7 +10,7 @@ router = APIRouter()
 async def get_by_property(property_id: str):
     """Get units by property ID"""
     async with get_session() as session:
-        units = list(session.query(object_type=Unit).where_equals("property_id", property_id))
+        units = list(session.query(object_type=Unit).where_equals("PropertyId", property_id))
         return units
 
 
@@ -18,10 +18,10 @@ async def get_by_property(property_id: str):
 async def create(unit: Unit):
     """Create a new unit"""
     async with get_session() as session:
-        if not unit.property_id or not unit.unit_number:
+        if not unit.PropertyId or not unit.UnitNumber:
             raise HTTPException(status_code=400, detail="PropertyId and UnitNumber are required")
         
-        unit.id = f"{unit.property_id}/{unit.unit_number}"
+        unit.Id = f"{unit.PropertyId}/{unit.UnitNumber}"
         session.store(unit)
         session.save_changes()
         return unit

@@ -1,17 +1,17 @@
 """API router for service requests"""
-from fastapi import APIRouter
+from datetime import datetime
+from typing import Optional
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from database import get_session
-from models import ServiceRequest
+from models import ServiceRequest, Property, Unit
+
+
+class UpdateStatusRequest(BaseModel):
+    Status: str
+
 
 router = APIRouter()
-
-
-@router.get("")
-async def get_all():
-    """Get all service requests"""
-    async with get_session() as session:
-        requests = list(session.query(object_type=ServiceRequest))
-        return requests
 
 
 @router.post("")
@@ -23,14 +23,66 @@ async def create(service_request: ServiceRequest):
         return service_request
 
 
-@router.put("/status/{request_id:path}")
-async def update_status(request_id: str, status: str):
+@router.get("/status/{status}")
+async def get_by_status(status: str, bounds_wkt: Optional[str] = None):
+    """Get service requests by status, optionally filtered by spatial bounds"""
+    async with get_session() as session:
+        # Query service requests by status
+        query = session.query(object_type=ServiceRequest).where_equals("Status", status)
+        query = query.include("PropertyId").include("UnitId")
+        
+        # Apply spatial filtering if bounds provided
+        if bounds_wkt:
+            query = query.spatial(
+                lambda x: x.point("Location"),
+                lambda criteria: criteria.relates_to_shape(bounds_wkt, "Within")
+            )
+        
+        # Order by opened date descending and limit to 10
+        requests = list(query.order_by_descending("OpenedAt").take(10))
+        
+        # Build result with related data
+        result = []
+        for req in requests:
+            # Load property and unit details
+            property_name = None
+            if req.PropertyId:
+                prop = session.load(req.PropertyId, object_type=Property)
+                property_name = prop.Name if prop else None
+            
+            unit_number = None
+            if req.UnitId:
+                unit = session.load(req.UnitId, object_type=Unit)
+                unit_number = unit.UnitNumber if unit else None
+            
+            result.append({
+                "Id": req.Id,
+                "Status": req.Status,
+                "OpenedAt": req.OpenedAt,
+                "UnitId": req.UnitId,
+                "PropertyId": req.PropertyId,
+                "Type": req.Type,
+                "Description": req.Description,
+                "PropertyName": property_name,
+                "UnitNumber": unit_number
+            })
+        
+        return result
+
+
+@router.put("/{request_id}/status")
+async def update_status(request_id: str, update_request: UpdateStatusRequest):
     """Update service request status"""
     async with get_session() as session:
         service_request = session.load(request_id, object_type=ServiceRequest)
         if not service_request:
             raise HTTPException(status_code=404, detail="Service request not found")
         
-        service_request.status = status
+        service_request.Status = update_request.Status
+        
+        # Set ClosedAt if status is Closed or Canceled
+        if update_request.Status in ("Closed", "Canceled"):
+            service_request.ClosedAt = datetime.today().date()
+        
         session.save_changes()
         return service_request

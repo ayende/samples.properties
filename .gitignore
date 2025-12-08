@@ -5,3 +5,4 @@ obj/
 .vs/
 *.cache
 node_modules/
+__pycache__/

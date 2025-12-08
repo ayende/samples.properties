@@ -6,20 +6,20 @@ from decimal import Decimal
 
 @dataclass
 class Lease:
-    unit_id: str = ""
-    renter_ids: list[str] = field(default_factory=list)
-    lease_amount: Decimal = Decimal("0.00")
-    start_date: datetime = field(default_factory=datetime.now)
-    end_date: datetime = field(default_factory=datetime.now)
-    legal_document_id: Optional[str] = None
-    power_unit_price: Decimal = Decimal("0.12")  # default $0.12 per kWh
-    water_unit_price: Decimal = Decimal("0.005")  # default $0.005 per gallon
-    id: Optional[str] = None
+    UnitId: str = ""
+    RenterIds: list[str] = field(default_factory=list)
+    LeaseAmount: Decimal = Decimal("0.00")
+    StartDate: datetime = field(default_factory=datetime.now)
+    EndDate: datetime = field(default_factory=datetime.now)
+    LegalDocumentId: Optional[str] = None
+    PowerUnitPrice: Decimal = Decimal("0.12")  # default $0.12 per kWh
+    WaterUnitPrice: Decimal = Decimal("0.005")  # default $0.005 per gallon
+    Id: Optional[str] = None
     
     @property
-    def is_active(self) -> bool:
+    def IsActive(self) -> bool:
         today = date.today()
-        return self.start_date.date() <= today <= self.end_date.date()
+        return self.StartDate.date() <= today <= self.EndDate.date()
     
     @classmethod
     def collection_name(cls) -> str:

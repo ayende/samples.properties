@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Optional, List
+from pydantic import field_validator, Field
 
 
 class Settings(BaseSettings):
@@ -10,8 +11,8 @@ class Settings(BaseSettings):
     # Telegram settings
     telegram_bot_token: Optional[str] = "YOUR_TELEGRAM_BOT_TOKEN_HERE"
     
-    # CORS settings
-    cors_origins: list[str] = ["*"]
+    # CORS settings - comma-separated string that will be parsed
+    cors_origins: str = "*"
     
     class Config:
         env_file = ".env"

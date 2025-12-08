@@ -4,12 +4,12 @@ from typing import Optional
 
 @dataclass
 class Property:
-    name: str = ""
-    address: str = ""
-    total_units: int = 0
-    latitude: float = 0.0
-    longitude: float = 0.0
-    id: Optional[str] = None
+    Name: str = ""
+    Address: str = ""
+    TotalUnits: int = 0
+    Latitude: float = 0.0
+    Longitude: float = 0.0
+    Id: Optional[str] = None
     
     @classmethod
     def collection_name(cls) -> str:

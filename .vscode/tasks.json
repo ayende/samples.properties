@@ -4,13 +4,11 @@
 		{
 			"label": "Run PropertySphere",
 			"type": "shell",
-			"command": "dotnet",
+			"command": "python",
 			"args": [
-				"run",
-				"--project",
-				"${workspaceFolder}/PropertySphere.csproj"
+				"${workspaceFolder}/main.py"
 			],
-			"problemMatcher": "$msCompile",
+			"problemMatcher": [],
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -18,17 +16,19 @@
 			"presentation": {
 				"reveal": "always",
 				"panel": "new"
-			}
+			},
+			"cwd": "${workspaceFolder}"
 		},
 		{
-			"label": "Build PropertySphere",
+			"label": "Install Dependencies",
 			"type": "shell",
-			"command": "dotnet",
+			"command": "pip",
 			"args": [
-				"build",
-				"${workspaceFolder}/PropertySphere.csproj"
+				"install",
+				"-r",
+				"${workspaceFolder}/requirements.txt"
 			],
-			"problemMatcher": "$msCompile",
+			"problemMatcher": [],
 			"group": "build"
 		},
 		{
@@ -37,7 +37,7 @@
 			"command": "Invoke-RestMethod",
 			"args": [
 				"-Uri",
-				"http://localhost:5000/api/datageneration/generate-data",
+				"http://localhost:8000/api/datageneration/generate-data",
 				"-Method",
 				"POST"
 			],
@@ -49,19 +49,20 @@
 		{
 			"label": "Watch PropertySphere",
 			"type": "shell",
-			"command": "dotnet",
+			"command": "python",
 			"args": [
-				"watch",
-				"run",
-				"--project",
-				"${workspaceFolder}/PropertySphere.csproj"
+				"-m",
+				"uvicorn",
+				"main:app",
+				"--reload"
 			],
-			"problemMatcher": "$msCompile",
+			"problemMatcher": [],
 			"isBackground": true,
 			"presentation": {
 				"reveal": "always",
 				"panel": "dedicated"
-			}
+			},
+			"cwd": "${workspaceFolder}"
 		}
 	]
 }

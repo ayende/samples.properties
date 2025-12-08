@@ -1,8 +1,7 @@
 """Database connection and session management for RavenDB"""
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from pyravendb.store.document_store import DocumentStore
-from pyravendb.data.indexes import AbstractIndexCreationTask
+from ravendb import DocumentStore
 from config import settings
 
 

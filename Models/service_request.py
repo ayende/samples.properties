@@ -5,15 +5,15 @@ from datetime import datetime
 
 @dataclass
 class ServiceRequest:
-    renter_id: str = ""
-    type: str = ""
-    description: str = ""
-    status: str = "Open"
-    opened_at: datetime = field(default_factory=datetime.now)
-    unit_id: Optional[str] = None
-    property_id: Optional[str] = None
-    closed_at: Optional[datetime] = None
-    id: Optional[str] = None
+    RenterId: str = ""
+    Type: str = ""
+    Description: str = ""
+    Status: str = "Open"
+    OpenedAt: datetime = field(default_factory=datetime.now)
+    UnitId: Optional[str] = None
+    PropertyId: Optional[str] = None
+    ClosedAt: Optional[datetime] = None
+    Id: Optional[str] = None
     
     @classmethod
     def collection_name(cls) -> str:
