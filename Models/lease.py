@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime, date
 from ravendb.tools.utils import Utils
 from .base import EntityBase
@@ -34,3 +34,16 @@ class Lease(EntityBase):
     @classmethod
     def collection_name(cls) -> str:
         return "Leases"
+    
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "Lease":
+        # Remove RavenDB metadata
+        json_dict.pop("@metadata", None)
+        
+        # Convert datetime strings to datetime objects
+        if "StartDate" in json_dict and isinstance(json_dict["StartDate"], str):
+            json_dict["StartDate"] = Utils.string_to_datetime(json_dict["StartDate"])
+        if "EndDate" in json_dict and isinstance(json_dict["EndDate"], str):
+            json_dict["EndDate"] = Utils.string_to_datetime(json_dict["EndDate"])
+        
+        return cls(**json_dict)

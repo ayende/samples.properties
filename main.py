@@ -18,10 +18,6 @@ async def lifespan(app: FastAPI):
     # Startup
     store = init_document_store()
     
-    # Initialize PropertyAgent
-    from services.property_agent import PropertyAgent
-    PropertyAgent.create(store)
-    
     # Start Telegram service
     if settings.telegram_bot_token and settings.telegram_bot_token != "YOUR_TELEGRAM_BOT_TOKEN_HERE":
         from services.telegram_service import TelegramService

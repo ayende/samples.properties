@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     ravendb_url: str = "http://localhost:8080"
     ravendb_database: str = "PropertySphere"
     
+    # AI settings
+    ai_provider: str = "OpenAI"
+    ai_model: str = "gpt-4.1-mini"
+    ai_api_key: Optional[str] = "YOUR_OPENAI_API_KEY_HERE"
+    
     # Telegram settings
     telegram_bot_token: Optional[str] = "YOUR_TELEGRAM_BOT_TOKEN_HERE"
     

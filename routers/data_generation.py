@@ -1,7 +1,7 @@
 """API router for demo data generation"""
 import random
 from datetime import datetime, timedelta
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query
 from database import get_session
 from models import Property, Unit, Renter, CreditCard, Lease, DebtItem, Payment, PaymentMethod, PaymentAllocation, ServiceRequest
 
@@ -9,7 +9,12 @@ router = APIRouter()
 
 
 @router.post("/generate-data")
-async def generate_data():
+async def generate_data(
+    telegram_chat_id: str = Query(
+        ...,
+        description="Telegram chat ID for the first renter. To get your Telegram chat ID, start a chat with @userinfobot on Telegram and it will send you your chat ID. Example: 123456789"
+    )
+):
     """Generate demo data for the application"""
     async with get_session() as session:
         # Create properties
@@ -48,7 +53,7 @@ async def generate_data():
         # Create renters with credit cards
         card_types = ["Visa", "MasterCard", "Amex", "Discover"]
         renters_data = [
-            ("John", "Doe", "123456789", "john.doe@email.com", "555-0101"),
+            ("John", "Doe", telegram_chat_id, "john.doe@email.com", "555-0101"),
             ("Jane", "Smith", "987654321", "jane.smith@email.com", "555-0102"),
             ("Michael", "Johnson", None, "m.johnson@email.com", "555-0103"),
             ("Emily", "Williams", "456789123", "emily.w@email.com", "555-0104"),

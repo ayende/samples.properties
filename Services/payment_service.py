@@ -1,6 +1,5 @@
 """Payment processing service"""
 from datetime import datetime
-from decimal import Decimal
 from models import Payment, DebtItem, PaymentMethod, PaymentAllocation
 
 
@@ -36,15 +35,15 @@ class PaymentService:
         session,
         renter_id: str,
         debt_item_ids: list,
-        card,
+        card: dict,
         payment_method: str
-    ) -> Decimal:
+    ) -> float:
         """Create a payment for debts using a credit card"""
         
         # Load all debt items
         debt_items = session.load(debt_item_ids, object_type=DebtItem) # Bulk load
         
-        total_amount = Decimal(0)
+        total_amount = 0
         missing_debts = []
         
         for debt_id in debt_item_ids:
@@ -59,7 +58,7 @@ class PaymentService:
                 raise ValueError(f"Debt item {debt_id} does not belong to you")
             
             amount_due = debt.AmountDue - debt.AmountPaid
-            total_amount += Decimal(str(amount_due))
+            total_amount += amount_due
         
         if missing_debts:
             raise ValueError(f"Debt items not found: {', '.join(missing_debts)}")
@@ -78,7 +77,7 @@ class PaymentService:
             )
         
         payment = Payment(
-            PaymentDate=datetime.date(datetime.timezone.utc),
+            PaymentDate=datetime.now(),
             TotalAmountReceived=total_amount,
             PaymentMethods=[
                 PaymentMethod(

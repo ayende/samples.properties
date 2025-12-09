@@ -1,11 +1,12 @@
 """RavenDB indexes for PropertySphere"""
-from decimal import Decimal
+from ravendb import AbstractIndexCreationTask
 
-
-class DebtItemsOutstanding:
+class DebtItems_Outstanding(AbstractIndexCreationTask):
     """Index for outstanding debt items with spatial support"""
     
     def __init__(self):
+        super(DebtItems_Outstanding, self).__init__()
+
         self.map = """
 from debt in docs.DebtItems
 let property = LoadDocument(debt.PropertyId, "Properties")
@@ -26,14 +27,25 @@ select new {
     Location = CreateSpatialField(property.Latitude, property.Longitude)
 }
 """
+
+
+class ServiceRequests_ByStatusAndLocation(AbstractIndexCreationTask):
+    """Index for service requests with status and spatial support"""
     
-    def execute(self, store):
-        """Execute the index creation"""
-        # Note: This is a placeholder. Actual implementation would use
-        # the RavenDB Python client's index creation API
-        index_def = {
-            "name": "DebtItems/Outstanding",
-            "maps": [self.map]
-        }
-        print(f"Index created: {index_def['name']}")
-        # store.maintenance.send(PutIndexesOperation(index_def))
+    def __init__(self):
+        super(ServiceRequests_ByStatusAndLocation, self).__init__()
+
+        self.map = """
+from sr in docs.ServiceRequests
+let property = LoadDocument(sr.PropertyId, "Properties")
+select new {
+    Id = Id(sr),
+    Status = sr.Status,
+    OpenedAt = sr.OpenedAt,
+    UnitId = sr.UnitId,
+    PropertyId = sr.PropertyId,
+    Type = sr.Type,
+    Description = sr.Description,
+    Location = CreateSpatialField(property.Latitude, property.Longitude)
+}
+"""

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Dict, Any
 from .base import EntityBase
 
 
@@ -23,3 +23,18 @@ class Renter(EntityBase):
     @classmethod
     def collection_name(cls) -> str:
         return "Renters"
+    
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "Renter":
+        # Remove RavenDB metadata
+        json_dict.pop("@metadata", None)
+        
+        # Convert CreditCards dicts to CreditCard objects
+        credit_cards = json_dict.get("CreditCards", [])
+        if credit_cards:
+            json_dict["CreditCards"] = [
+                CreditCard(**card) if isinstance(card, dict) else card
+                for card in credit_cards
+            ]
+        
+        return cls(**json_dict)

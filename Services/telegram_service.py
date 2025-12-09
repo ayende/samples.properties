@@ -1,10 +1,12 @@
 """Telegram bot service for PropertySphere"""
 import asyncio
 import logging
+import threading
 from datetime import datetime, date
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.constants import ParseMode, ChatAction
+from ravendb.documents.subscriptions.document_subscriptions import SubscriptionWorkerOptions
 from ravendb.documents.operations.ai.agents import AiConversationCreationOptions
 from models import Renter, Lease, ServiceRequest, Photo
 from services.property_agent import PropertyAgent
@@ -20,6 +22,7 @@ class TelegramService:
         self.document_store = document_store
         self.application = None
         self._running = False
+        self.main_loop = None
         
     async def start(self):
         """Start the Telegram bot"""
@@ -36,6 +39,10 @@ class TelegramService:
         self.application.add_handler(MessageHandler(filters.Document.IMAGE, self.handle_photo))
         self.application.add_handler(CommandHandler("clear", self.handle_clear))
         
+        # Start subscription worker for photo analysis notifications in background thread
+        self.main_loop= asyncio.get_event_loop()
+        threading.Thread(target=self._start_photo_subscription_worker, daemon=True).start()
+
         # Start polling
         self._running = True
         await self.application.initialize()
@@ -51,6 +58,55 @@ class TelegramService:
             await self.application.stop()
             await self.application.shutdown()
             logger.info("Telegram polling service stopped")
+    
+    def _start_photo_subscription_worker(self):
+        """Run subscription worker in background thread"""
+        try:
+            logger.info("Photo analysis subscription worker started")
+            with self.document_store.subscriptions.get_subscription_worker(
+                SubscriptionWorkerOptions("After Photos Analysis"),
+                Photo
+            ) as worker:
+                worker.run(lambda batch: self._process_batch(batch)).result()
+            
+        except Exception as e:
+            logger.error(f"Error in Photos Analysis subscription worker: {e}", exc_info=True)
+
+    def _process_batch(self, batch):
+        """Process batch of analyzed photos"""
+        logger.info(f"Processing photo analysis batch of {len(batch.items)} items")
+        try:
+            with batch.open_session() as session:
+                logger.info("Opened session for processing photo batch")
+                for item in batch.items:
+                    photo = item.result
+                    
+                    renter = session.load(photo.RenterId, Renter)
+                    
+                    if not renter or not renter.TelegramChatId:
+                        continue
+
+                    task = self._process_message(
+                        chat_id=renter.TelegramChatId,
+                        message_text=(
+                            f"Uploaded an image with caption: {photo.Caption}\r\n"
+                            f"Image description: {photo.Description}."
+                        )
+                    )
+                    asyncio.run_coroutine_threadsafe(task, self.main_loop).result()
+            
+        except Exception as e:
+            logger.error(f"Error processing photo batch: {e}", exc_info=True)
+        
+    async def _send_message_to_chat(self, chat_id: str, message: str):
+        """Send a message to a Telegram chat"""
+        try:
+            await self.application.bot.send_message(
+                chat_id=chat_id,
+                text=message
+            )
+        except Exception as e:
+            logger.error(f"Failed to send message to chat {chat_id}: {e}")
     
     @staticmethod
     def get_conversation_id(chat_id: str) -> str:
@@ -76,7 +132,7 @@ class TelegramService:
         
         with self.document_store.open_session() as session:
             renters = list(session.query(object_type=Renter).where_equals(
-                "telegram_chat_id", chat_id
+                "TelegramChatId", chat_id
             ).take(1))
             
             if not renters:
@@ -111,7 +167,7 @@ class TelegramService:
             )
             
             session.store(photo)
-            session.advanced.attachments.store(photo, file_name, photo_bytes)
+            session.advanced.attachments.store(photo, "image.jpg", photo_bytes)
             session.save_changes()
             
             await update.message.reply_text(
@@ -123,6 +179,10 @@ class TelegramService:
         chat_id = str(update.effective_chat.id)
         message_text = update.message.text
         
+        return await self._process_message(chat_id, message_text)
+
+    async def _process_message(self, chat_id: str, message_text: str):
+        """Process a message and send the response"""
         logger.info(f"Received message from {chat_id}: {message_text}")
         
         with self.document_store.open_session() as session:
@@ -131,9 +191,10 @@ class TelegramService:
             ).take(1))
             
             if not renters:
-                await update.message.reply_text(
-                    "Sorry, your Telegram account is not linked to a renter profile. "
-                    "Please contact property management."
+                await self.application.bot.send_message(
+                    chat_id=chat_id,
+                    text="Sorry, your Telegram account is not linked to a renter profile. "
+                         "Please contact property management."
                 )
                 return
 
@@ -145,7 +206,7 @@ class TelegramService:
             renter_units = [lease.UnitId for lease in leases]
             
             # Send typing indicator
-            await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+            await self.application.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
             
             conversation_id = self.get_conversation_id(chat_id)
             renter = renters[0]
@@ -163,11 +224,11 @@ class TelegramService:
                 )
             )
             
-            async def handle_charge_card(args):
+            def handle_charge_card(args):
                 """Handle charging a card for debts"""
                 from services.payment_service import PaymentService
                 
-                async with self.document_store.open_session() as pay_session:
+                with self.document_store.open_session() as pay_session:
                     renter_with_card = pay_session.load(renter.Id, object_type=Renter)
                     card = next((c for c in renter_with_card.CreditCards if c.Last4Digits == args["Card"]), None)
                     
@@ -186,9 +247,9 @@ class TelegramService:
             
             conversation.handle("ChargeCard", handle_charge_card, "SendErrorsToModel")
             
-            async def handle_create_service_request(args):
+            def handle_create_service_request(args):
                 """Handle creating a service request"""
-                async with self.document_store.open_session() as sr_session:
+                with self.document_store.open_session() as sr_session:
                     unit_id = renter_units[0] if renter_units else None
                     property_id = unit_id.rsplit('/', 1)[0] if unit_id else None
                     
@@ -228,14 +289,16 @@ class TelegramService:
             
             # Send response
             try:
-                await update.message.reply_text(
-                    answer_text,
+                await self.application.bot.send_message(
+                    chat_id=chat_id,
+                    text=answer_text,
                     parse_mode=ParseMode.MARKDOWN,
                     reply_markup=reply_markup
                 )
             except Exception:
                 # Fallback to plain text if markdown fails
-                await update.message.reply_text(
-                    answer_text,
+                await self.application.bot.send_message(
+                    chat_id=chat_id,
+                    text=answer_text,
                     reply_markup=reply_markup
                 )
