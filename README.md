@@ -158,6 +158,11 @@ We use **RavenDB Time Series** to efficiently store and query utility usage data
 ## 📸 Gallery
 
 <div align="center">
+  <img src="main-view.png" width="90%" />
+  <br/><br/>
+  <img src="spatial-filtering.png" width="45%" />
+  <img src="utilities-view.png" width="45%" />
+  <br/><br/>
   <img src="bot-leak-image.png" width="45%" />
   <img src="bot-pay-bill.png" width="45%" />
 </div>
