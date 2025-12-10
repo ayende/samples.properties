@@ -2,6 +2,10 @@
 
 **PropertySphere** is a modern Property Management System built with **Python (FastAPI)** and **RavenDB**. It demonstrates how to leverage RavenDB's advanced features—including **GenAI integration**, **AI Agents**, **Spatial Indexing**, **Dynamic Indexing** and **Data Subscriptions**—to build intelligent, real-time applications.
 
+![PropertySphere Dashboard](main-view.png)
+
+Here is an example of the Telegram Bot that integrate into this application
+
 ## 🚀 Core Features
 
 *   **AI-Powered Renter Assistant:** A Telegram bot that acts as a property agent, allowing renters to report issues, check balances, and pay rent using natural language.
@@ -124,6 +128,8 @@ We use **RavenDB Subscriptions** to trigger actions *after* data has been modifi
 ### 4. Spatial Indexing
 We use RavenDB's spatial capabilities to index properties and service requests by location.
 
+![Property Locations](spatial-filtering.png)
+
 *   **Code:** `indexes.py`
 *   **Example:** `ServiceRequests_ByStatusAndLocation` allows querying for open requests within a specific radius of a property manager.
 
@@ -140,6 +146,14 @@ class ServiceRequests_ByStatusAndLocation(AbstractIndexCreationTask):
         }
         """
 ```
+
+### 5. Time Series Data
+We use **RavenDB Time Series** to efficiently store and query utility usage data (Water, Electricity) for each unit.
+
+![Utility Usage](utilities-view.png)
+
+*   **Code:** `routers/utility_usage.py`
+*   **Usage:** Storing hourly/daily consumption data and querying it for graphs and billing.
 
 ## 📸 Gallery
 
