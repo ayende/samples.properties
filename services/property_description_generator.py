@@ -1,10 +1,15 @@
 """Property Description Generator using GenAI"""
 from textwrap import dedent
-from ravendb_impl.gen_ai_configuration import GenAiConfiguration
-from ravendb_impl.gen_ai_transformation import GenAiTransformation
-from ravendb_impl.add_gen_ai_operation import AddGenAiOperation
-from ravendb_impl.update_gen_ai_operation import UpdateGenAiOperation
-from ravendb_impl.get_ongoing_task_info_operation import GetOngoingTaskInfoOperation, OngoingTaskType
+from ravendb.documents.operations.ai import (
+    GenAiConfiguration,
+    GenAiTransformation,
+    AddGenAiOperation,
+    UpdateGenAiOperation,
+)
+from ravendb.documents.operations.ongoing_tasks import (
+    GetOngoingTaskInfoOperation,
+    OngoingTaskType,
+)
 
 
 class PropertyDescriptionGenerator:
