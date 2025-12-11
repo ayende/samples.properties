@@ -107,6 +107,18 @@ limit 10
                     parameters_sample_object="{}"
                 ),
                 AiAgentToolQuery(
+                    name="GetUtilitiesUsage",
+                    description="Retrieve renter's utilities usage for the given time period",
+                    query="""
+from Units
+where id() in ($renterUnits)
+select 
+    timeseries(from Water between $start and $end group by 1d select sum()),
+    timeseries(from Power between $start and $end group by 1d select sum())
+""",
+                    parameters_sample_object='{"start": "yyyy-MM-dd", "end": "yyyy-MM-dd"}'
+                ),
+                AiAgentToolQuery(
                     name="GetRecentPayments",
                     description="Retrieve renter's recent payments",
                     query="""
@@ -125,7 +137,7 @@ from ServiceRequests
 where RenterId = $renterId
     and vector.search(embedding.text(Description), $query)
 order by OpenedAt desc
-limit 5
+limit 7
 """,
                     parameters_sample_object='{"query": ["query terms to find matching service request"]}'
                 )

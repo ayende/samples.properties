@@ -25,7 +25,7 @@ class PropertyDescriptionGenerator:
                 ai.genContext({
                     Caption: this.Caption
                 })
-                    .withJpen(loadAttachment("image.jpg"));
+                    .withJpeg(loadAttachment("image.jpg"));
             """).strip()
         )
         
@@ -62,7 +62,7 @@ class PropertyDescriptionGenerator:
         if not cls._needs_update(existing_task, gen_ai_config):
             return
         
-        task_id = existing_task.get('TaskId')
+        task_id = existing_task.task_id
         store.maintenance.send(UpdateGenAiOperation(task_id, gen_ai_config))
     
     @classmethod
@@ -71,26 +71,27 @@ class PropertyDescriptionGenerator:
         if not existing_task:
             return False
             
-        config = existing_task.get('Configuration', {})
-        
-        # Compare key fields
-        if config.get('Prompt') != desired_config.prompt:
+        config = existing_task.configuration
+
+        # Compare key fields directly on the configuration object (snake_case properties)
+        if config.prompt != desired_config.prompt:
             return True
-        if config.get('UpdateScript', '').strip() != desired_config.update_script.strip():
+        if (config.update_script or "").strip() != desired_config.update_script.strip():
             return True
-        if config.get('Collection') != desired_config.collection:
+        if config.collection != desired_config.collection:
             return True
-        if config.get('ConnectionStringName') != desired_config.connection_string_name:
+        if config.connection_string_name != desired_config.connection_string_name:
             return True
-        if config.get('Identifier') != desired_config.identifier:
+        if config.identifier != desired_config.identifier:
             return True
             
         # Compare transformation script
-        transforms = config.get('Transforms', [])
+        transforms = config.transforms or []
         if not transforms:
             return True
         
-        existing_script = transforms[0].get('Script', '').strip()
+        first = transforms[0]
+        existing_script = (first.script or "").strip()
         desired_script = desired_config.gen_ai_transformation.script.strip()
         return existing_script != desired_script
     

@@ -6,6 +6,17 @@
 
 Here is an example of the Telegram Bot that integrate into this application
 
+> ### 🤖 Chat With Your Property Bot
+> **Talk to:** `$YOUR_BOT_ID` on Telegram (replace with your bot’s handle). Try prompts like:
+> - "What were my utility charges last month?"
+> - "What’s my balance right now?"
+> - "Can you charge my card for pending rent?"
+> - "I need maintenance to fix a leaky faucet."
+>   - Add a photo for context (e.g., [`plumbing-problem-pic.jpg`](plumbing-problem-pic.jpg))
+> - "Any open service requests still pending?"
+>
+> The bot can pull your balances, charge your saved card, open and track service requests, and even process any photos you send. Pair these with the screenshots below to see the experience.
+
 ## 🚀 Core Features
 
 *   **AI-Powered Renter Assistant:** A Telegram bot that acts as a property agent, allowing renters to report issues, check balances, and pay rent using natural language.
