@@ -285,6 +285,8 @@ public class TelegramPollingService : IHostedService
         var msg = new StringBuilder();
         Task<Message>? previous = null;
 
+        var result = await conversation.RunAsync<PropertyAgent.Reply>(cancellationToken);
+
         var result = await conversation.StreamAsync<PropertyAgent.Reply>(x => x.Answer, s =>
         {
             msg.Append(s);

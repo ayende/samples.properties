@@ -37,7 +37,7 @@
 			"command": "Invoke-RestMethod",
 			"args": [
 				"-Uri",
-				"http://localhost:5000/api/datageneration/generate-data",
+				"http://localhost:5000/api/datageneration/generate-data?telegramChatId=${input:telegramChatId}",
 				"-Method",
 				"POST"
 			],
@@ -62,6 +62,14 @@
 				"reveal": "always",
 				"panel": "dedicated"
 			}
+		}
+	],
+	"inputs": [
+		{
+			"id": "telegramChatId",
+			"type": "promptString",
+			"description": "Your Telegram Chat ID (get it from @userinfobot on Telegram)",
+			"default": ""
 		}
 	]
 }

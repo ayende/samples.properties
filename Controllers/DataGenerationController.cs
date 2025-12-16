@@ -16,8 +16,13 @@ public class DataGenerationController : ControllerBase
     }
 
     [HttpPost("generate-data")]
-    public IActionResult GenerateData()
+    public IActionResult GenerateData([FromQuery] string? telegramChatId)
     {
+        if (string.IsNullOrWhiteSpace(telegramChatId))
+        {
+            return BadRequest("Telegram Chat ID is required. Get your ID from @userinfobot on Telegram.");
+        }
+
         var random = new Random();
 
         var properties = new List<Property>
@@ -56,7 +61,7 @@ public class DataGenerationController : ControllerBase
         var cardTypes = new[] { "Visa", "MasterCard", "Amex", "Discover" };
         var renters = new List<Renter>
         {
-            new Renter { FirstName = "John", LastName = "Doe", TelegramChatId = "123456789", ContactEmail = "john.doe@email.com", ContactPhone = "555-0101" },
+            new Renter { FirstName = "John", LastName = "Doe", TelegramChatId = telegramChatId, ContactEmail = "john.doe@email.com", ContactPhone = "555-0101" },
             new Renter { FirstName = "Jane", LastName = "Smith", TelegramChatId = "987654321", ContactEmail = "jane.smith@email.com", ContactPhone = "555-0102" },
             new Renter { FirstName = "Michael", LastName = "Johnson", TelegramChatId = null, ContactEmail = "m.johnson@email.com", ContactPhone = "555-0103" },
             new Renter { FirstName = "Emily", LastName = "Williams", TelegramChatId = "456789123", ContactEmail = "emily.w@email.com", ContactPhone = "555-0104" },

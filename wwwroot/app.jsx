@@ -4,7 +4,7 @@ const API_BASE = '/api';
 
 function App() {
     const [currentView, setCurrentView] = useState('dashboard');
-    const [boundsWkt, setBoundsWkt] = useState(null); 
+    const [boundsWkt, setBoundsWkt] = useState(null);
     const [stats, setStats] = useState({
         totalProperties: 0,
         totalUnits: 0,
@@ -12,32 +12,38 @@ function App() {
         openRequests: 0,
         missingDebts: 0
     });
+    const [properties, setProperties] = useState([]);
+    const [recentRequests, setRecentRequests] = useState([]);
+    const [missingDebts, setMissingDebts] = useState([]);
 
     useEffect(() => {
-        loadDashboardStats();
+        loadDashboard();
     }, [boundsWkt]);
 
-    const loadDashboardStats = async () => {
+    const loadDashboard = async () => {
         try {
             const boundsQuery = boundsWkt ? `?boundsWkt=${encodeURIComponent(boundsWkt)}` : '';
 
-            const propertiesPromise = fetch(`${API_BASE}/properties${boundsQuery}`).then(r => r.json());
-            const [properties, units, requests, debts] = await Promise.all([
-                propertiesPromise,
-                propertiesPromise.then((props) => props.flatMap(p => p.units || [])),
+            const [requests, debts, props] = await Promise.all([
                 fetch(`${API_BASE}/servicerequests/status/Open${boundsQuery}`).then(r => r.json()),
-                fetch(`${API_BASE}/debtitems/missing${boundsQuery}`).then(r => r.json())
+                fetch(`${API_BASE}/debtitems/missing${boundsQuery}`).then(r => r.json()),
+                fetch(`${API_BASE}/properties${boundsQuery}`).then(r => r.json())
             ]);
 
+            const units = props.flatMap(p => p.units || []);
+
+            setProperties(props);
+            setRecentRequests(requests.slice(0, 5));
+            setMissingDebts(debts.slice(0, 5));
             setStats({
-                totalProperties: properties.length,
+                totalProperties: props.length,
                 totalUnits: units.length,
                 vacantUnits: units.filter(u => u.vacantFrom).length,
                 openRequests: requests.length,
                 missingDebts: debts.length
             });
         } catch (error) {
-            console.error('Failed to load dashboard stats:', error);
+            console.error('Failed to load dashboard data:', error);
         }
     };
 
@@ -45,7 +51,7 @@ function App() {
         <div className="flex h-screen overflow-hidden">
             <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
             <main className="flex-1 overflow-y-auto p-8">
-                {currentView === 'dashboard' && <Dashboard stats={stats} boundsWkt={boundsWkt} onBoundsWktChange={setBoundsWkt} />}
+                {currentView === 'dashboard' && <Dashboard stats={stats} boundsWkt={boundsWkt} onBoundsWktChange={setBoundsWkt} properties={properties} recentRequests={recentRequests} missingDebts={missingDebts} />}
                 {currentView === 'requests' && <ServiceRequests />}
                 {currentView === 'management' && <Management />}
             </main>
@@ -71,11 +77,10 @@ function Sidebar({ currentView, setCurrentView }) {
                     <button
                         key={item.id}
                         onClick={() => setCurrentView(item.id)}
-                        className={`w-full text-left px-4 py-3 rounded-xl mb-2 transition-smooth flex items-center gap-3 ${
-                            currentView === item.id
-                                ? 'bg-blue-600 text-white shadow-lg'
-                                : 'text-gray-300 hover:bg-gray-700'
-                        }`}
+                        className={`w-full text-left px-4 py-3 rounded-xl mb-2 transition-smooth flex items-center gap-3 ${currentView === item.id
+                            ? 'bg-blue-600 text-white shadow-lg'
+                            : 'text-gray-300 hover:bg-gray-700'
+                            }`}
                     >
                         <span className="text-xl">{item.icon}</span>
                         <span className="font-medium">{item.name}</span>
@@ -86,32 +91,7 @@ function Sidebar({ currentView, setCurrentView }) {
     );
 }
 
-function Dashboard({ stats, boundsWkt, onBoundsWktChange }) {
-    const [recentRequests, setRecentRequests] = useState([]);
-    const [missingDebts, setMissingDebts] = useState([]);
-    const [properties, setProperties] = useState([]);
-
-    useEffect(() => {
-        loadDashboardData();
-    }, [boundsWkt]);
-
-    const loadDashboardData = async () => {
-        try {
-            const boundsQuery = boundsWkt ? `?boundsWkt=${encodeURIComponent(boundsWkt)}` : '';
-
-            const [requests, debts, props] = await Promise.all([
-                fetch(`${API_BASE}/servicerequests/status/Open${boundsQuery}`).then(r => r.json()),
-                fetch(`${API_BASE}/debtitems/missing${boundsQuery}`).then(r => r.json()),
-                fetch(`${API_BASE}/properties${boundsQuery}`).then(r => r.json())
-            ]);
-
-            setRecentRequests(requests.slice(0, 5));
-            setMissingDebts(debts.slice(0, 5));
-            setProperties(props);
-        } catch (error) {
-            console.error('Failed to load dashboard data:', error);
-        }
-    };
+function Dashboard({ stats, boundsWkt, onBoundsWktChange, properties, recentRequests, missingDebts }) {
 
     const handleBoundsWktChange = (wkt) => {
         onBoundsWktChange(wkt);
@@ -120,7 +100,7 @@ function Dashboard({ stats, boundsWkt, onBoundsWktChange }) {
     return (
         <div>
             <h2 className="text-3xl font-bold mb-8 text-blue-400">Dashboard</h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
                 <StatCard title="Total Properties" value={stats.totalProperties} icon="🏢" />
                 <StatCard title="Total Units" value={stats.totalUnits} icon="🏠" />
@@ -236,14 +216,14 @@ function PropertyMap({ properties, onBoundsChange }) {
     const mapRef = React.useRef(null);
     const mapInstanceRef = React.useRef(null);
 
-    
+
     useEffect(() => {
         if (!mapRef.current) return;
 
         // Initialize map only once
         if (!mapInstanceRef.current) {
             const map = L.map(mapRef.current).setView([37.8, -96], 3); // USA view
-            
+
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors',
                 maxZoom: 19
@@ -255,20 +235,20 @@ function PropertyMap({ properties, onBoundsChange }) {
                     const bounds = map.getBounds();
                     const sw = bounds.getSouthWest();
                     const ne = bounds.getNorthEast();
-                    
+
                     // If bounds exceed world limits, send null (show all data)
                     if (sw.lng < -180 || sw.lng > 180 || ne.lng < -180 || ne.lng > 180 ||
                         sw.lat < -90 || sw.lat > 90 || ne.lat < -90 || ne.lat > 90) {
                         onBoundsChange(null);
                         return;
                     }
-                    
+
                     // Rectangle polygon WKT (lon lat order, counterclockwise, closed)
                     const wkt = `POLYGON ((${sw.lng} ${sw.lat}, ${ne.lng} ${sw.lat}, ${ne.lng} ${ne.lat}, ${sw.lng} ${ne.lat}, ${sw.lng} ${sw.lat}))`;
                     onBoundsChange(wkt);
                 }
             };
-            
+
             map.on('moveend', emitBounds);
             map.on('zoomend', emitBounds);
             // Emit initial bounds after a brief delay to allow map to fully initialize
@@ -290,7 +270,7 @@ function PropertyMap({ properties, onBoundsChange }) {
             marker.bindPopup(`<strong>${prop.name}</strong><br/>${prop.address}<br/>Units: ${prop.totalUnits}`);
         });
     }, [properties]);
-    
+
     // Cleanup only on unmount
     useEffect(() => {
         return () => {
@@ -341,17 +321,16 @@ function ServiceRequests() {
     return (
         <div>
             <h2 className="text-3xl font-bold mb-8 text-blue-400">Service Requests</h2>
-            
+
             <div className="mb-6 flex gap-4">
                 {statuses.map(status => (
                     <button
                         key={status}
                         onClick={() => setFilterStatus(status)}
-                        className={`px-4 py-2 rounded-lg transition-smooth ${
-                            filterStatus === status
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        }`}
+                        className={`px-4 py-2 rounded-lg transition-smooth ${filterStatus === status
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                            }`}
                     >
                         {status}
                     </button>
@@ -381,11 +360,10 @@ function ServiceRequests() {
                                         <td className="p-4 text-blue-400 font-medium">{request.type}</td>
                                         <td className="p-4">{request.description}</td>
                                         <td className="p-4">
-                                            <span className={`px-3 py-1 rounded-full text-sm ${
-                                                request.status === 'Open' ? 'bg-yellow-900 text-yellow-300' :
+                                            <span className={`px-3 py-1 rounded-full text-sm ${request.status === 'Open' ? 'bg-yellow-900 text-yellow-300' :
                                                 request.status === 'Closed' ? 'bg-green-900 text-green-300' :
-                                                'bg-blue-900 text-blue-300'
-                                            }`}>
+                                                    'bg-blue-900 text-blue-300'
+                                                }`}>
                                                 {request.status}
                                             </span>
                                         </td>
@@ -471,13 +449,13 @@ function Management() {
             const urlView = params.get('view');
             const urlPropertyId = params.get('property');
             const urlUnitId = params.get('unit');
-            
+
             if (urlPropertyId) {
                 const property = properties.find(p => p.id === urlPropertyId);
                 if (property) {
                     setSelectedProperty(property);
                     setUnits((property && property.units) ? property.units : []);
-                    
+
                     if (urlUnitId && property.units) {
                         const unit = property.units.find(u => u.id === urlUnitId);
                         if (unit) {
@@ -488,14 +466,14 @@ function Management() {
                             return;
                         }
                     }
-                    
+
                     if (urlView === 'units') {
                         setView('units');
                         return;
                     }
                 }
             }
-            
+
             if (urlView) {
                 setView(urlView);
             }
@@ -506,15 +484,15 @@ function Management() {
     useEffect(() => {
         const params = new URLSearchParams();
         params.set('view', view);
-        
+
         if (selectedProperty) {
             params.set('property', selectedProperty.id);
         }
-        
+
         if (selectedUnit) {
             params.set('unit', selectedUnit.id);
         }
-        
+
         const newUrl = `${window.location.pathname}?${params.toString()}`;
         window.history.pushState(null, '', newUrl);
     }, [view, selectedProperty, selectedUnit]);
@@ -526,15 +504,15 @@ function Management() {
             const urlView = params.get('view') || 'properties';
             const urlPropertyId = params.get('property');
             const urlUnitId = params.get('unit');
-            
+
             setView(urlView);
-            
+
             if (urlPropertyId && properties.length > 0) {
                 const property = properties.find(p => p.id === urlPropertyId);
                 if (property) {
                     setSelectedProperty(property);
                     setUnits((property && property.units) ? property.units : []);
-                    
+
                     if (urlUnitId && property.units) {
                         const unit = property.units.find(u => u.id === urlUnitId);
                         if (unit) {
@@ -556,7 +534,7 @@ function Management() {
                 setSelectedUnit(null);
             }
         };
-        
+
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
     }, [properties]);
@@ -608,7 +586,7 @@ function Management() {
         try {
             let startDate, endDate;
             const now = new Date();
-            
+
             if (mode === 'hourly') {
                 // Show 48 hours of data
                 endDate = new Date(now.getTime() - (offset * 24 * 60 * 60 * 1000));
@@ -618,7 +596,7 @@ function Management() {
                 endDate = new Date(now.getTime() - (offset * 7 * 24 * 60 * 60 * 1000));
                 startDate = new Date(endDate.getTime() - (6 * 7 * 24 * 60 * 60 * 1000));
             }
-            
+
             const response = await fetch(
                 `${API_BASE}/utilityusage/unit/${unitId}?from=${startDate.toISOString()}&to=${endDate.toISOString()}`
             );
@@ -653,18 +631,16 @@ function Management() {
             <div className="mb-6 flex gap-4">
                 <button
                     onClick={() => setView('properties')}
-                    className={`px-4 py-2 rounded-lg transition-smooth ${
-                        view === 'properties' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    }`}
+                    className={`px-4 py-2 rounded-lg transition-smooth ${view === 'properties' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        }`}
                 >
                     Properties
                 </button>
                 {selectedProperty && (
                     <button
                         onClick={() => setView('units')}
-                        className={`px-4 py-2 rounded-lg transition-smooth ${
-                            view === 'units' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        }`}
+                        className={`px-4 py-2 rounded-lg transition-smooth ${view === 'units' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                            }`}
                     >
                         Units - {selectedProperty.name}
                     </button>
@@ -672,9 +648,8 @@ function Management() {
                 {selectedUnit && (
                     <button
                         onClick={() => setView('leases')}
-                        className={`px-4 py-2 rounded-lg transition-smooth ${
-                            view === 'leases' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        }`}
+                        className={`px-4 py-2 rounded-lg transition-smooth ${view === 'leases' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                            }`}
                     >
                         Lease - Unit {selectedUnit.unitNumber}
                     </button>
@@ -810,17 +785,16 @@ function Management() {
                                     <button
                                         onClick={() => navigateWeek(-1)}
                                         disabled={weekOffset === 0}
-                                        className={`px-4 py-2 rounded-lg transition-smooth ${
-                                            weekOffset === 0
-                                                ? 'bg-gray-900 text-gray-600 cursor-not-allowed'
-                                                : 'bg-gray-700 hover:bg-gray-600'
-                                        }`}
+                                        className={`px-4 py-2 rounded-lg transition-smooth ${weekOffset === 0
+                                            ? 'bg-gray-900 text-gray-600 cursor-not-allowed'
+                                            : 'bg-gray-700 hover:bg-gray-600'
+                                            }`}
                                     >
                                         Next →
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <h4 className="text-lg font-semibold text-yellow-400 mb-3">⚡ Electricity Usage</h4>
@@ -849,7 +823,7 @@ function Management() {
                                                             const heightPx = Math.max((entry.value / maxValue) * 120, 4);
                                                             return (
                                                                 <div key={idx} className="flex-1 group relative">
-                                                                    <div 
+                                                                    <div
                                                                         className="w-full bg-gradient-to-t from-yellow-600 to-yellow-400 rounded-t transition-all hover:from-yellow-500 hover:to-yellow-300"
                                                                         style={{ height: `${heightPx}px` }}
                                                                     ></div>
@@ -869,7 +843,7 @@ function Management() {
                                                     {utilityData.powerUsage.filter(e => e.value != null).slice().reverse().map((entry, idx) => (
                                                         <div key={idx} className="flex justify-between text-sm">
                                                             <span className="text-gray-400">
-                                                                {viewMode === 'hourly' 
+                                                                {viewMode === 'hourly'
                                                                     ? new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
                                                                     : new Date(entry.timestamp).toLocaleDateString()
                                                                 }
@@ -884,7 +858,7 @@ function Management() {
                                         <p className="text-gray-400">No power usage data available</p>
                                     )}
                                 </div>
-                                
+
                                 <div>
                                     <h4 className="text-lg font-semibold text-blue-400 mb-3">💧 Water Usage</h4>
                                     {utilityData.waterUsage && utilityData.waterUsage.length > 0 ? (
@@ -912,7 +886,7 @@ function Management() {
                                                             const heightPx = Math.max((entry.value / maxValue) * 120, 4);
                                                             return (
                                                                 <div key={idx} className="flex-1 group relative">
-                                                                    <div 
+                                                                    <div
                                                                         className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t transition-all hover:from-blue-500 hover:to-blue-300"
                                                                         style={{ height: `${heightPx}px` }}
                                                                     ></div>
@@ -932,7 +906,7 @@ function Management() {
                                                     {utilityData.waterUsage.filter(e => e.value != null).slice().reverse().map((entry, idx) => (
                                                         <div key={idx} className="flex justify-between text-sm">
                                                             <span className="text-gray-400">
-                                                                {viewMode === 'hourly' 
+                                                                {viewMode === 'hourly'
                                                                     ? new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
                                                                     : new Date(entry.timestamp).toLocaleDateString()
                                                                 }

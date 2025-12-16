@@ -1,173 +1,184 @@
-# PropertySphere - Rental Property Management Application
+﻿# PropertySphere 🏠
 
-A modern, full-stack rental property management application built with .NET, RavenDB, and React.
+PropertySphere is a modern Property Management System built with ASP.NET Core, RavenDB, and a lightweight React frontend. It demonstrates RavenDB’s advanced features — GenAI integration, AI Agents, Spatial Indexing, Dynamic Indexing, Data Subscriptions, and Time Series — to deliver an intelligent, real‑time experience for renters and property managers.
 
-## Architecture
+![PropertySphere Dashboard](images/main-view.png)
 
-### Backend
-- **Framework**: ASP.NET Core MVC (.NET 8+)
-- **Database**: RavenDB (Document Store)
-- **Integration**: Telegram Bot API (Background Polling Service)
+### 🤖 Chat With Your Property Bot
 
-### Frontend
-- **Framework**: React (Functional Components with Hooks)
-- **Styling**: Tailwind CSS
-- **Theme**: Dark Mode with Professional Blue Theme
+Talk to your Telegram bot (replace with your bot’s handle). Try prompts like:
 
-## Features
+- "What were my utility charges last month?"
+- "What’s my balance right now?"
+- "Can you charge my card for pending rent?"
+- "I need maintenance to fix a leaky faucet." (you can attach a JPG)
+- "Any open service requests still pending?"
 
-### Property Management
-- Manage multiple properties with GPS coordinates
-- Track units and vacancy status
-- Monitor lease agreements and active renters
+The bot can show balances, accept payments, open and track service requests, and react to photo uploads.
 
-### Financial Management
-- Track debt items (rent, utilities, fees)
-- Record payments with multiple payment methods
-- Automatic payment allocation to debt items
-- Missing payment alerts and reporting
+## 🚀 Core Features
 
-### Service Requests
-- Track maintenance and service requests
-- Status management (Open, Scheduled, In Progress, Closed, Canceled)
-- Integration with Telegram bot for renter submissions
+- **AI‑Powered Renter Assistant**: Telegram bot that lets renters report issues, check balances, and pay rent with natural language.
+- **Intelligent Maintenance (GenAI)**: Upload a photo (JPG) and a GenAI ETL generates a concise, actionable description for maintenance.
+   ![PropertySphere Chat](images/bot-leak-image.png)
+- **Billing**: Friendly flow for reviewing and paying outstanding debt items.
+   ![PropertySphere Payment](images/bot-pay-bill.png)
+- **Real‑time Notifications**: RavenDB Subscriptions notify renters on analysis results and workflow updates.
+- **Location‑Aware**: Spatial indexes enable querying by property/service-request locations.
+- **Financial Tracking**: Debt items, payments, and utility usage with allocations.
 
-### Telegram Integration
-- Background polling service for bot updates
-- `/request [description]` command for service requests
-- Automatic notifications to renters
+## 🛠️ Prerequisites
 
-## Setup Instructions
+1. **.NET 8 SDK**
+2. **RavenDB 7.1+** (local or RavenDB Cloud)
+    - Getting started: https://docs.ravendb.net/7.1/start/getting-started#installation--setup
+3. **OpenAI API Key** (required for AI features)
+4. **Telegram Bot Token** (required for chat interface)
+    - Create a bot via [@BotFather](https://t.me/BotFather) → `/newbot`
 
-### Prerequisites
-1. .NET 8 SDK or later
-2. RavenDB Server (local or remote)
-3. Telegram Bot Token (optional, for Telegram features)
+## ⚙️ Setup Guide
 
-### Installation
+### 1) Database Setup
 
-1. **Configure RavenDB**
-   - Install and start RavenDB server (default: http://localhost:8080)
-   - Update connection settings in `appsettings.json` if needed
+1. Open RavenDB Studio (usually http://localhost:8080).
+2. Create a database named `PropertySphere`.
 
-2. **Configure Telegram Bot (Optional)**
-   - Create a bot via @BotFather on Telegram
-   - Update the bot token in `appsettings.json`:
-     ```json
-     {
-       "Telegram": {
-         "BotToken": "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-       }
-     }
-     ```
+### 2) Environment Configuration
 
-3. **Restore Dependencies**
-   ```powershell
-   dotnet restore
-   ```
+Use `appsettings.Development.json` (recommended for local dev):
 
-4. **Run the Application**
-   ```powershell
-   dotnet run
-   ```
-
-5. **Access the Application**
-   - Open browser to `http://localhost:5000`
-   - The application will serve the React frontend automatically
-
-### Generate Demo Data
-
-To populate the database with realistic test data:
-
-```powershell
-# Use POST request to generate data
-curl -X POST http://localhost:5000/api/datageneration/generate-data
+```json
+{
+   "RavenDb": {
+      "Url": "http://localhost:8080",
+      "Database": "PropertySphere"
+   },
+   "Telegram": {
+      "BotToken": "YOUR_TELEGRAM_BOT_TOKEN_HERE"
+   },
+   "AI_API_KEY": "YOUR_OPENAI_API_KEY_HERE"
+}
 ```
 
-This will create:
-- 3 properties
-- 10 units
-- 15 renters
-- 7 active leases
-- Multiple debt items and payment records
-- 6 service requests
+Alternatively, set environment variables (PowerShell):
 
-## API Endpoints
+```powershell
+$env:AI_API_KEY = "sk-proj-..."             # OpenAI key (enables AI Agent & GenAI)
+$env:Telegram__BotToken = "123456:ABC-DEF"  # Telegram bot token (note: double underscore)
+```
 
-### Properties
-- `GET /api/properties` - List all properties
-- `POST /api/properties` - Create new property
+> Notes
+> - If `AI_API_KEY` is not set, AI Agent and GenAI tasks are skipped.
+> - If `Telegram:BotToken` is missing, the app runs but the Telegram polling service stays disabled.
 
-### Units
-- `GET /api/units/by-property/{propertyId}` - Get units by property
-- `POST /api/units` - Create new unit
+Or use .NET User Secrets (recommended for local dev):
 
-### Renters
-- `GET /api/renters/{renterId}` - Get renter details
-- `POST /api/renters` - Create new renter
+```powershell
+# Run in the project folder (contains PropertySphere.csproj)
+dotnet user-secrets set "AI_API_KEY" "sk-proj-..."
+dotnet user-secrets set "Telegram:BotToken" "123456:ABC-DEF"
+```
 
-### Leases
-- `POST /api/leases` - Create new lease
-- `PUT /api/leases/{leaseId}/terminate` - Terminate lease
-- `GET /api/leases/by-unit/{unitId}` - Get active lease for unit
+User Secrets are loaded automatically in Development (see `Properties/launchSettings.json`) because this project already defines a `UserSecretsId` in `PropertySphere.csproj`.
 
-### Debt Items
-- `GET /api/debtitems/missing` - List all missing payments
-- `POST /api/debtitems/charge-rent` - Generate rent charges for active leases
-- (Deprecated) `POST /api/debtitems/utility/{leaseId}` - Use `POST /api/debtitems/fee/{renterId}` instead
-- `POST /api/debtitems/fee/{renterId}` - Create individual fee
+### 3) Installation
 
-### Payments
-- `POST /api/payments` - Record payment and allocate to debts
+```powershell
+dotnet restore
+```
 
-### Service Requests
-- `GET /api/servicerequests` - List all service requests
-- `GET /api/servicerequests/status/{status}` - Filter by status
-- `POST /api/servicerequests` - Create new request
-- `PUT /api/servicerequests/{requestId}/status` - Update status
+## 🏃 Running the Application
 
-## Data Models
+### Option A: VS Code Tasks (recommended)
+1. Open Command Palette → “Tasks: Run Task”.
+2. Choose **Run PropertySphere** (or **Watch PropertySphere** for hot reload).
 
-### Property
-- Name, Address, Total Units
-- GPS Coordinates (Latitude, Longitude)
+### Option B: Terminal
 
-### Unit
-- Property Reference
-- Unit Number
-- Vacant From Date
+```powershell
+dotnet run --project .\PropertySphere.csproj
 
-### Renter
-- Name, Contact Info
-- Telegram Chat ID
+# Hot reload
+dotnet watch run --project .\PropertySphere.csproj
+```
 
-### Lease
-- Unit and Renter References
-- Lease Amount, Start/End Dates
-- Active Status (calculated)
+App URL: http://localhost:5000 (serves the React frontend from `wwwroot/`).
 
-### DebtItem
-- Lease or Renter Reference
-- Type, Description, Amounts
-- Due Date, Payment Status (calculated)
+## 🧪 Generating Demo Data
 
-### Payment
-- Payment Date, Total Amount
-- Payment Methods (array)
-- Allocation to Debt Items (array)
+To explore the app with realistic data and link your Telegram account:
 
-### ServiceRequest
-- Unit and Renter Reference
-- Type, Description, Status
-- Opened/Closed Timestamps
+1. Get your Telegram Chat ID: chat with [@userinfobot](https://t.me/userinfobot) and copy the numeric ID.
+2. Use the VS Code task **Generate Demo Data** (you’ll be prompted for the Chat ID), or run:
 
-## Architecture Notes
+```powershell
+Invoke-RestMethod -Uri "http://localhost:5000/api/datageneration/generate-data?telegramChatId=YOUR_CHAT_ID" -Method POST
 
-- **Minimal Abstraction**: Business logic is implemented directly in controllers
-- **Session Management**: RavenDB sessions are scoped per request
-- **Telegram Service**: Runs as a background hosted service with long polling
-- **Frontend**: Single-file React application with client-side routing
+# curl alternative
+curl -X POST "http://localhost:5000/api/datageneration/generate-data?telegramChatId=YOUR_CHAT_ID"
+```
 
-## License
+Once generated, start chatting with your bot. Try “Hello” or “I have a leak in my kitchen”.
 
-Proprietary - For internal use by property administration team only.
+## 🧠 RavenDB Features & Architecture
+
+### 1) AI Agent (`PropertyAgent`)
+
+We configure a RavenDB AI Agent to answer renter questions using RAG over your RavenDB data (leases, debts, payments, utilities): looks up relevant documents, formats helpful responses, and exposes tool actions like creating service requests or charging a stored card.
+
+- Code: `services/PropertyAgent.cs`
+- Flow: Telegram → RavenDB Agent → Queries/Actions → Reply + follow‑ups
+
+### 2) GenAI ETL (`PropertyDescriptionGenerator`)
+
+When a renter uploads a JPG via Telegram, the image is stored as an attachment on a `Photo` document. A GenAI task processes it and writes a concise description back to the document.
+
+- Code: `services/PropertyDescriptionGenerator.cs`
+- Mechanism: `GenAiConfiguration` + prompt → OpenAI model → updates `Description`
+
+### 3) Data Subscriptions (`PhotoSubscription`)
+
+Subscriptions react after the GenAI description is saved, notifying the renter via Telegram with context.
+
+- Code: `services/PhotoSubscription.cs`
+- Query: all `Photos` where `Description != null`
+
+### 4) Spatial Indexing
+
+We index service requests with geospatial fields for property‑centric queries.
+
+- Code: `Indexes/ServiceRequests_ByStatusAndLocation.cs`
+- Example (C#):
+
+```csharp
+Map = requests => from sr in requests
+                  let property = LoadDocument<Property>(sr.PropertyId)
+                  select new {
+                        Location = CreateSpatialField(property.Latitude, property.Longitude)
+                  };
+```
+
+### 5) Time Series Data
+
+Utility usage (Water, Power) for each unit is stored as RavenDB Time Series and queried for billing and graphs.
+
+- Ingest: demo generator writes hourly usage
+- Query: AI Agent can request time‑bounded aggregations for renter units
+
+## 📸 Gallery
+
+<div align="center">
+   <img src="images/main-view.png" width="90%" />
+   <br/><br/>
+   <img src="images/spatial-filtering.png" width="45%" />
+   <img src="images/utilities-view.png" width="45%" />
+   <br/><br/>
+   <img src="images/bot-leak-image.png" width="45%" />
+   <img src="images/bot-pay-bill.png" width="45%" />
+   <br/>
+</div>
+
+## 📎 Additional Links
+
+- Quickstart: `QUICKSTART.md`
+- Overview: `SUMMARY.md`

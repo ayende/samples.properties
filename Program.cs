@@ -8,6 +8,7 @@ using Raven.Client.Documents.Operations.OngoingTasks;
 using Raven.Client.Documents.Subscriptions;
 using Raven.Client.Documents.Operations.AI;
 using Raven.Client.Exceptions.Documents.Subscriptions;
+using Raven.Client.Documents.Operations.ConnectionStrings;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,74 +29,29 @@ builder.Services.AddSingleton<IDocumentStore>(sp =>
 
     IndexCreation.CreateIndexes(typeof(DebtItems_Outstanding).Assembly, store);
 
-    var databaseRecord = store.Maintenance.Server.Send(new GetDatabaseRecordOperation(ravenDbDatabase));
-    if (databaseRecord?.AiConnectionStrings?.ContainsKey("Property Management AI Model") is not true)
-    {
-        throw new InvalidOperationException(
-            "AI connection string 'Property Management AI Model' not found in database.\n" +
-            "Please configure an AI connection string in RavenDB Studio:\n" +
-            "  1. Go to Settings > AI Hub > AI Connection Strings > Add new\n" +
-            "  2. Name it 'Property Management AI Model'\n" +
-            "  3. Configure your AI provider (OpenAI, Claude, etc.)");
-    }
+    var aiApiKey = sp.GetRequiredService<IConfiguration>()["AI_API_KEY"];
 
-    if (store.Maintenance.Send(new GetOngoingTaskInfoOperation("Describe Photos", OngoingTaskType.GenAi)) is null)
+    if (!string.IsNullOrWhiteSpace(aiApiKey) && aiApiKey != "YOUR_OPENAI_API_KEY_HERE")
     {
-        store.Maintenance.Send(new AddGenAiOperation(new GenAiConfiguration
+        var aiConnection = new AiConnectionString
         {
-            Name = "Describe Photos",
-            Collection = "Photos",
-            ConnectionStringName = "Property Management AI Model",
-            GenAiTransformation = new GenAiTransformation
+            Name = "Property Management AI Model",
+            Identifier = "property-management-ai-model",
+            OpenAiSettings = new OpenAiSettings
             {
-                Script = """
-                        const image = loadAttachment('image.jpg');
-                        if(!image) return;
-
-                        ai.genContext({
-                            Caption: this.Caption
-                        }).withJpeg(image);
-                        """
+                ApiKey = aiApiKey,
+                Endpoint = "https://api.openai.com/v1",
+                Model = "gpt-4.1-mini"
             },
-            Prompt = """
-                    You are a helpful assistant aiding a tenant in submitting a maintenance request. 
-                    Look at the photo provided. Write a clear, professional description of the problem shown that the tenant can paste into an email or form.
-                    Focus on what is broken and where the damage is. Describe what is the problem, don't provide solutions
-                    Use standard terminology (e.g., use 'P-trap' instead of 'curvy pipe' if you are sure, otherwise keep it simple).
-                    Keep it under 3 sentences.
-                    """,
-            SampleObject = """
-                    {
-                        "Description": "Description of the image"
-                    }
-                    """,
-            UpdateScript = "this.Description = $output.Description;",
-        }));
+            ModelType = AiModelType.Chat
+        };
+
+        store.Maintenance.Send(new PutConnectionStringOperation<AiConnectionString>(aiConnection));
+
+        PropertyAgent.Create(store);
+        PropertyDescriptionGenerator.Create(store);
     }
-
-    PropertyAgent.Create(store);
-
-
-    const string subscriptionName = "After Photos Analysis";
-    try
-    {
-        store.Subscriptions.GetSubscriptionState(subscriptionName);
-    }
-    catch (SubscriptionDoesNotExistException)
-    {
-        store.Subscriptions.Create(new SubscriptionCreationOptions
-        {
-            Name = subscriptionName,
-            Query = """
-                    from Photos 
-                    where Description != null 
-                    include RenterId
-                    """
-        });
-    }
-
-
-
+    PhotoSubscription.Create(store);
     return store;
 });
 

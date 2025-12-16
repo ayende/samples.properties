@@ -136,6 +136,19 @@ public static class PropertyAgent
                     },
                     new AiAgentToolQuery
                     {
+                        Name = "GetUtilitiesUsage",
+                        Description = "Retrieve renter's utilities usage for the given time period",
+                        Query = """
+                            from Units
+                            where id() in ($renterUnits)
+                            select 
+                                timeseries(from Water between $start and $end group by 1d select sum()),
+                                timeseries(from Power between $start and $end group by 1d select sum())
+                            """,
+                        ParametersSampleObject = "{\"start\": \"yyyy-MM-dd\", \"end\": \"yyyy-MM-dd\"}"
+                    },
+                    new AiAgentToolQuery
+                    {
                         Name = "SearchServiceRequests",
                         Description = "Semantic search for renter's service requests",
                         Query = """
