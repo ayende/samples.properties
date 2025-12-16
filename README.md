@@ -20,9 +20,13 @@ The bot can show balances, accept payments, open and track service requests, and
 
 - **AI‑Powered Renter Assistant**: Telegram bot that lets renters report issues, check balances, and pay rent with natural language.
 - **Intelligent Maintenance (GenAI)**: Upload a photo (JPG) and a GenAI ETL generates a concise, actionable description for maintenance.
+
    ![PropertySphere Chat](images/bot-leak-image.png)
+
 - **Billing**: Friendly flow for reviewing and paying outstanding debt items.
+
    ![PropertySphere Payment](images/bot-pay-bill.png)
+   
 - **Real‑time Notifications**: RavenDB Subscriptions notify renters on analysis results and workflow updates.
 - **Location‑Aware**: Spatial indexes enable querying by property/service-request locations.
 - **Financial Tracking**: Debt items, payments, and utility usage with allocations.
